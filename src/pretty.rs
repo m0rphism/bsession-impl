@@ -4,11 +4,20 @@ pub struct PrettyOpts {
     pub max_line_len: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Assoc {
+    Left,
+    Right,
+    None,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PrettyState {
     pub indent_stack: Vec<usize>,
     pub lines: Vec<String>,
     pub cur_line: String,
+    pub prec_level: usize,
+    pub assoc: Assoc,
 }
 
 pub struct PrettyEnv<'a, 'b, S> {
@@ -23,6 +32,8 @@ impl PrettyState {
             indent_stack: vec![0],
             lines: vec![],
             cur_line: String::new(),
+            prec_level: 0,
+            assoc: Assoc::None,
         }
     }
 }
@@ -43,8 +54,45 @@ impl<'a, 'b, S> PrettyEnv<'a, 'b, S> {
             self.state.cur_line += &l;
         }
     }
+    pub fn infix(&mut self, prec_level: usize, assoc: Assoc, f: impl FnOnce(&mut Self)) {
+        let parens_needed = prec_level < self.state.prec_level
+            || prec_level == self.state.prec_level
+                && assoc != self.state.assoc
+                && self.state.assoc != Assoc::None;
+        let old_assoc = self.state.assoc;
+        let old_prec_level = self.state.prec_level;
+        self.state.assoc = assoc;
+        self.state.prec_level = prec_level;
+        if parens_needed {
+            self.pp("(");
+            f(self);
+            self.pp(")");
+        } else {
+            f(self)
+        }
+        self.state.assoc = old_assoc;
+        self.state.prec_level = old_prec_level;
+    }
+    pub fn pp_prec<P: Pretty<S> + ?Sized>(&mut self, prec_level: usize, x: &P) {
+        let tmp = self.state.prec_level;
+        self.state.prec_level = prec_level;
+        x.pp(self);
+        self.state.prec_level = tmp;
+    }
+    pub fn pp_arg<P: Pretty<S> + ?Sized>(&mut self, assoc: Assoc, x: &P) {
+        let tmp = self.state.assoc;
+        self.state.assoc = assoc;
+        x.pp(self);
+        self.state.assoc = tmp;
+    }
+    pub fn pp_left<P: Pretty<S> + ?Sized>(&mut self, x: &P) {
+        self.pp_arg(Assoc::Left, x)
+    }
+    pub fn pp_right<P: Pretty<S> + ?Sized>(&mut self, x: &P) {
+        self.pp_arg(Assoc::Right, x)
+    }
     pub fn pp<P: Pretty<S> + ?Sized>(&mut self, x: &P) {
-        x.pp(self)
+        x.pp(self);
     }
     pub fn nl(&mut self) {
         let mut s = String::new();

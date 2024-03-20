@@ -1,1 +1,1 @@
-λx. λy. y x x
+λx. λy. y x (x x) (λz. z) (λw. w)
