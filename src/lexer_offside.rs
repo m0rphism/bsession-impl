@@ -23,7 +23,7 @@ pub fn process_indent<T>(
 
     toks.push(Spanned::new(Braced::Begin, Span { start: 0, end: 0 }));
     for stok in stoks.toks {
-        let tok = *stok.val;
+        let tok = stok.val;
         let span = stok.span;
         let span_end = Span {
             start: span.end,

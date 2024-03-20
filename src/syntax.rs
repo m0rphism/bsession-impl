@@ -1,3 +1,5 @@
+use crate::span::Spanned;
+
 pub type Id = String;
 pub type Loc = usize;
 
@@ -25,9 +27,9 @@ pub type Loc = usize;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Var(Id),
-    Abs(Id, Box<Expr>),
-    App(Box<Expr>, Box<Expr>),
+    Var(SId),
+    Abs(SId, Box<SExpr>),
+    App(Box<SExpr>, Box<SExpr>),
     // Int(i64),
     // Float(f64),
     // String(String),
@@ -40,3 +42,6 @@ pub enum Expr {
     // Scope(Program),
     // Loc(Loc),
 }
+
+pub type SId = Spanned<Id>;
+pub type SExpr = Spanned<Expr>;

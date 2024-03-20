@@ -1,5 +1,6 @@
 use crate::{
     pretty::{Assoc, Pretty, PrettyEnv},
+    span::Spanned,
     syntax::Expr,
 };
 
@@ -10,10 +11,16 @@ type UserState = ();
 use Assoc::Left as L;
 use Assoc::Right as R;
 
+impl<T: Pretty<UserState>> Pretty<UserState> for Spanned<T> {
+    fn pp(&self, p: &mut PrettyEnv<UserState>) {
+        self.val.pp(p)
+    }
+}
+
 impl Pretty<UserState> for Expr {
     fn pp(&self, p: &mut PrettyEnv<UserState>) {
         match self {
-            Expr::Var(x) => p.str(x),
+            Expr::Var(x) => p.str(&x.val),
             Expr::Abs(x, e) => p.infix(1, R, |p| {
                 p.pp("λ");
                 p.pp(x);

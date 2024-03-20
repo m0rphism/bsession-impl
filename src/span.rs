@@ -4,16 +4,13 @@ pub type Span = Range<usize>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Spanned<T> {
-    pub val: Box<T>,
+    pub val: T,
     pub span: Span,
 }
 
 impl<T> Spanned<T> {
     pub fn new(val: T, span: Span) -> Self {
-        Self {
-            val: Box::new(val),
-            span,
-        }
+        Self { val, span }
     }
 }
 

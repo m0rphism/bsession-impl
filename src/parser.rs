@@ -15,28 +15,31 @@ peg::parser! {
         rule spanned<T>(t: rule<T>) -> Spanned<T>
             = start:position!() x:t() end:position!() { Spanned::new(x, Span { start, end }) }
 
-        pub rule id() -> IdS
-            = [Tok(Id(x))] { x.to_owned() }
+        pub rule id() -> IdS = [Tok(Id(x))] { x.to_owned() }
+        pub rule sid() -> SId = spanned(<id()>)
 
-        pub rule expr() -> Expr
-            = e:expr_lam() { e }
+        pub rule expr() -> Expr = e:expr_lam() { e }
+        pub rule sexpr() -> SExpr = spanned(<expr()>)
 
         pub rule expr_lam() -> Expr
-            = [Tok(Lambda)] x:id() [Tok(Period)] e:expr_lam() { Expr::Abs(x, Box::new(e)) }
+            = [Tok(Lambda)] x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(x, Box::new(e)) }
             / e:expr_app() { e }
+        pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
 
         #[cache_left_rec]
         pub rule expr_app() -> Expr
-            = e1:expr_app() e2:expr_atom() { Expr::App(Box::new(e1), Box::new(e2)) }
+            = e1:sexpr_app() e2:sexpr_atom() { Expr::App(Box::new(e1), Box::new(e2)) }
             / e:expr_atom() { e }
+        pub rule sexpr_app() -> SExpr = spanned(<expr_app()>)
 
         #[cache_left_rec]
         pub rule expr_atom() -> Expr
-            = [Tok(Id(x))] { Expr::Var(x.to_owned()) }
+            = x:sid() { Expr::Var(x.to_owned()) }
             / [Tok(LParen)] e:expr() [Tok(RParen)] { e }
+        pub rule sexpr_atom() -> SExpr = spanned(<expr_atom()>)
 
-        pub rule program() -> Expr
-            = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }
+        pub rule program() -> Expr = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }
+        pub rule sprogram() -> SExpr = spanned(<program()>)
 
         // #[cache_left_rec]
         // pub rule expr() -> Expr = precedence!{
