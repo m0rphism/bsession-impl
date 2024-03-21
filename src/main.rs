@@ -7,18 +7,21 @@ pub mod pretty;
 pub mod span;
 pub mod syntax;
 pub mod to_str;
+pub mod typechecker;
 
 use args::Args;
 use ariadne::{Color, ColorGenerator, Fmt, IndexType, Label, Report, ReportKind, Source};
 use clap::Parser;
 use lexer::LexerError;
 use peg::error::ParseError;
+use typechecker::TypeError;
 
 use crate::pretty::{pretty, PrettyOpts};
 
 pub enum IErr {
     Lexer(LexerError),
     Parser(ParseError<usize>),
+    Typing(TypeError),
 }
 
 pub fn run(args: &Args) -> Result<(), IErr> {
@@ -50,7 +53,12 @@ pub fn run(args: &Args) -> Result<(), IErr> {
         indent_by: 2,
         max_line_len: 80,
     };
-    println!("{}", pretty(&p_opts, e));
+    println!("{}", pretty(&p_opts, &e));
+
+    println!("===== TYPECHECKER =====");
+    let (t, e) = typechecker::infer_type(&e).map_err(IErr::Typing)?;
+    println!("Type: {}", pretty(&p_opts, t));
+    println!("Effect: {}", pretty(&p_opts, e));
 
     Ok(())
 }
@@ -88,6 +96,7 @@ pub fn report_error(src_path: &str, e: IErr) {
                 .print((&src_path, Source::from(&src)))
                 .unwrap();
         }
+        IErr::Typing(e) => println!("{e:?}"),
     }
 }
 
