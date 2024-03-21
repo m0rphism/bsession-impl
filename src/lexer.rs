@@ -15,6 +15,8 @@ pub enum LexingError {
     Other,
 }
 
+pub type LexerError = Spanned<LexingError>;
+
 // TODO
 impl Display for LexingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -133,13 +135,14 @@ pub fn lex_plain(s: &str) -> impl Iterator<Item = (Result<Token, LexingError>, S
     lex.spanned()
 }
 
-pub fn lex(src: &str) -> Result<SpannedToks<Token>, LexingError> {
+pub fn lex(src: &str) -> Result<SpannedToks<Token>, LexerError> {
     let lex: Lexer<Token> = Token::lexer(src);
-    Ok(SpannedToks {
-        src,
-        toks: lex
-            .spanned()
-            .map(|(tok, span)| tok.map(|tok| Spanned::new(tok, span)))
-            .collect::<Result<Vec<_>, _>>()?,
-    })
+    let toks = lex
+        .spanned()
+        .map(|(tok, span)| match tok {
+            Ok(tok) => Ok(Spanned::new(tok, span)),
+            Err(e) => Err(Spanned::new(e, span)),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SpannedToks { src, toks })
 }

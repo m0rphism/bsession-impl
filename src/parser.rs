@@ -32,10 +32,9 @@ peg::parser! {
             / e:expr_atom() { e }
         pub rule sexpr_app() -> SExpr = spanned(<expr_app()>)
 
-        #[cache_left_rec]
         pub rule expr_atom() -> Expr
             = x:sid() { Expr::Var(x.to_owned()) }
-            / [Tok(LParen)] e:expr() [Tok(RParen)] { e }
+            / [Tok(ParenL)] e:expr() [Tok(ParenR)] { e }
         pub rule sexpr_atom() -> SExpr = spanned(<expr_atom()>)
 
         pub rule program() -> Expr = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }

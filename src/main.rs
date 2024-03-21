@@ -11,32 +11,37 @@ pub mod to_str;
 use args::Args;
 use ariadne::{Color, ColorGenerator, Fmt, IndexType, Label, Report, ReportKind, Source};
 use clap::Parser;
+use lexer::LexerError;
+use peg::error::ParseError;
 
-use crate::pretty::{pretty, Pretty, PrettyOpts};
+use crate::pretty::{pretty, PrettyOpts};
 
-fn main() {
-    let args = Args::parse();
+pub enum IErr {
+    Lexer(LexerError),
+    Parser(ParseError<usize>),
+}
 
+pub fn run(args: &Args) -> Result<(), IErr> {
     println!("===== SRC =====");
     let src = std::fs::read_to_string(&args.src_path).unwrap();
     println!("{src}\n");
 
-    println!("===== TOKS =====");
-    let toks = lexer::lex(&src).unwrap();
-    for t in &toks.toks {
-        println!("{t:?}");
-    }
-    println!();
+    // println!("===== TOKS =====");
+    let toks = lexer::lex(&src).map_err(IErr::Lexer)?;
+    // for (i, t) in toks.toks.iter().enumerate() {
+    //     println!("{i}:\t{t:?}");
+    // }
+    // println!();
 
     println!("===== TOKS OFFSIDE =====");
     let toks = lexer_offside::process_indent(toks, |_| false, |_| false);
-    for t in &toks.toks {
-        println!("{t:?}");
+    for (i, t) in toks.toks.iter().enumerate() {
+        println!("{i}:\t{t:?}");
     }
     println!();
 
     println!("===== AST =====");
-    let e = parser::py_parser::program(&toks).unwrap();
+    let e = parser::py_parser::program(&toks).map_err(IErr::Parser)?;
     println!("{e:?}");
     println!();
 
@@ -47,38 +52,49 @@ fn main() {
     };
     println!("{}", pretty(&p_opts, e));
 
+    Ok(())
+}
+
+pub fn report_error(src_path: &str, e: IErr) {
+    let src = std::fs::read_to_string(src_path).unwrap();
+
     let mut colors = ColorGenerator::new();
-
-    // Generate & choose some colours for each of our elements
     let a = colors.next();
-    let b = colors.next();
-    let out = Color::Fixed(81);
 
+    match e {
+        IErr::Lexer(e) => {
+            Report::build(ReportKind::Error, &src_path, e.span.start)
+                .with_config(ariadne::Config::default().with_index_type(IndexType::Byte))
+                .with_message(format!("Lexing failed"))
+                .with_label(
+                    Label::new((&src_path, e.span))
+                        .with_message(format!("Lexer got stuck here"))
+                        .with_color(a),
+                )
+                .finish()
+                .print((&src_path, Source::from(&src)))
+                .unwrap();
+        }
+        IErr::Parser(e) => {
+            Report::build(ReportKind::Error, &src_path, e.location) // TODO: here IndexType::Byte doesn't apply...
+                .with_config(ariadne::Config::default().with_index_type(IndexType::Byte))
+                .with_message(format!("Parsing failed"))
+                .with_label(
+                    Label::new((&src_path, e.location..e.location))
+                        .with_message(format!("Expected {}", e.expected))
+                        .with_color(a),
+                )
+                .finish()
+                .print((&src_path, Source::from(&src)))
+                .unwrap();
+        }
+    }
+}
+
+fn main() {
+    let args = Args::parse();
     let src_path = args.src_path.to_string_lossy();
-
-    Report::build(ReportKind::Error, &src_path, 12)
-        .with_config(ariadne::Config::default().with_index_type(IndexType::Byte))
-        .with_code(3)
-        .with_message(format!("Incompatible types"))
-        .with_label(
-            Label::new((&src_path, 2..3))
-                .with_message(format!("This is of type {}", "Nat".fg(a)))
-                .with_color(a),
-        )
-        .with_label(
-            Label::new((&src_path, 12..13))
-                .with_message(format!("This is of type {}", "Str".fg(b)))
-                .with_color(b),
-        )
-        .with_note(format!(
-            "Outputs of {} expressions must coerce to the same type",
-            "match".fg(out)
-        ))
-        .finish()
-        .print((&src_path, Source::from(&src)))
-        .unwrap();
-
-    // if let Err(e) = tui::run(&args) {
-    //     println!("ERROR: {}", e);
-    // }
+    if let Err(e) = run(&args) {
+        report_error(&src_path, e);
+    }
 }
