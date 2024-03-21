@@ -62,6 +62,18 @@ pub enum Token<'a> {
     UnitT,
     #[token("close")]
     Close,
+    #[token("unr")]
+    Unr,
+    #[token("lin")]
+    Lin,
+    #[token("left")]
+    Left,
+    #[token("right")]
+    Right,
+    #[token("pure")]
+    Pure,
+    #[token("eff")]
+    Eff,
 
     // Operators
     #[token(";")]
@@ -80,7 +92,7 @@ pub enum Token<'a> {
     BracketR,
     #[token("+")]
     Plus,
-    #[token("->")]
+    #[regex("->|→")]
     Arrow,
     #[token("-")]
     Minus,

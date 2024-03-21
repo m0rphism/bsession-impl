@@ -127,68 +127,74 @@ impl Pretty<UserState> for Expr {
                 p.pp(" in ");
                 p.pp(e2);
             }),
-            //     Expr::Int(x) => p.str(format!("{x}")),
-            //     Expr::Float(x) => p.str(format!("{x}")),
-            //     Expr::String(x) => p.str(format!("\"{x}\"")), // TODO: escaping
-            //     Expr::Bool(true) => p.str("True"),
-            //     Expr::Bool(false) => p.str("False"),
-            //     Expr::List(es) => {
-            //         p.pp("[");
-            //         p.pp_sep(", ", es);
-            //         p.pp("]");
-            //     }
-            //     Expr::ListAccess(e1, e2) => {
-            //         p.pp(e1);
-            //         p.pp("[");
-            //         p.pp(e2);
-            //         p.pp("]");
-            //     }
-            //     Expr::Binop(op, e1, e2) => {
-            //         p.pp(e1);
-            //         p.pp(" ");
-            //         p.pp(op);
-            //         p.pp(" ");
-            //         p.pp(e2);
-            //     }
-            //     Expr::Unop(op, e) => {
-            //         p.pp(op);
-            //         p.pp(" ");
-            //         p.pp(e);
-            //     }
-            //     Expr::Scope(prog) => {
-            //         p.block_inline(|p| {
-            //             p.pp("{{");
-            //             p.user_state.stack.push(prog.frame.clone());
-            //             p.block(|p| {
-            //                 p.pp(prog);
-            //             });
-            //             p.user_state.stack.pop();
-            //             p.nl();
-            //             p.pp("}}");
-            //         });
-            //     }
-            //     Expr::None => p.pp("None"),
-            //     Expr::Loc(l) => {
-            //         if p.user_state.implicit_heap && !p.user_state.in_heap {
-            //             match p.user_state.heap.lookup(*l) {
-            //                 Ok(v) => {
-            //                     let annotate = !p.user_state.implicit_heap_only_duplicates
-            //                         || p.user_state.heap.contains_value_not_at(v, *l)
-            //                         || !p.user_state.stack.is_unique_value(&Expr::Loc(*l));
-            //                     if annotate {
-            //                         p.pp(&format!("{}:", l));
-            //                     }
-            //                     p.pp(v);
-            //                 }
-            //                 Err(e) => p.pp(&format!("<{}:{}>", l, e)),
-            //             }
-            //         } else {
-            //             p.pp(&format!("<{}>", l))
-            //         }
-            //     }
+            Expr::Ann(e, t) => {
+                p.pp(e);
+                p.pp(" : ");
+                p.pp(t);
+            }
         }
     }
 }
+
+//     Expr::Int(x) => p.str(format!("{x}")),
+//     Expr::Float(x) => p.str(format!("{x}")),
+//     Expr::String(x) => p.str(format!("\"{x}\"")), // TODO: escaping
+//     Expr::Bool(true) => p.str("True"),
+//     Expr::Bool(false) => p.str("False"),
+//     Expr::List(es) => {
+//         p.pp("[");
+//         p.pp_sep(", ", es);
+//         p.pp("]");
+//     }
+//     Expr::ListAccess(e1, e2) => {
+//         p.pp(e1);
+//         p.pp("[");
+//         p.pp(e2);
+//         p.pp("]");
+//     }
+//     Expr::Binop(op, e1, e2) => {
+//         p.pp(e1);
+//         p.pp(" ");
+//         p.pp(op);
+//         p.pp(" ");
+//         p.pp(e2);
+//     }
+//     Expr::Unop(op, e) => {
+//         p.pp(op);
+//         p.pp(" ");
+//         p.pp(e);
+//     }
+//     Expr::Scope(prog) => {
+//         p.block_inline(|p| {
+//             p.pp("{{");
+//             p.user_state.stack.push(prog.frame.clone());
+//             p.block(|p| {
+//                 p.pp(prog);
+//             });
+//             p.user_state.stack.pop();
+//             p.nl();
+//             p.pp("}}");
+//         });
+//     }
+//     Expr::None => p.pp("None"),
+//     Expr::Loc(l) => {
+//         if p.user_state.implicit_heap && !p.user_state.in_heap {
+//             match p.user_state.heap.lookup(*l) {
+//                 Ok(v) => {
+//                     let annotate = !p.user_state.implicit_heap_only_duplicates
+//                         || p.user_state.heap.contains_value_not_at(v, *l)
+//                         || !p.user_state.stack.is_unique_value(&Expr::Loc(*l));
+//                     if annotate {
+//                         p.pp(&format!("{}:", l));
+//                     }
+//                     p.pp(v);
+//                 }
+//                 Err(e) => p.pp(&format!("<{}:{}>", l, e)),
+//             }
+//         } else {
+//             p.pp(&format!("<{}>", l))
+//         }
+//     }
 
 // impl<'a> Pretty<UserState> for Binop {
 //     fn pp(&self, p: &mut PrettyEnv<UserState>) {

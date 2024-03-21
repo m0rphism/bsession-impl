@@ -77,6 +77,7 @@ pub enum Expr {
     App(Box<SExpr>, Box<SExpr>),
     Pair(Box<SExpr>, Box<SExpr>),
     Let(SId, SId, Box<SExpr>, Box<SExpr>),
+    Ann(Box<SExpr>, SType),
     // Int(i64),
     // Float(f64),
     // String(String),

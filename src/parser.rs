@@ -2,6 +2,7 @@ use crate::lexer::Token;
 use crate::lexer_offside::Braced;
 use crate::peg_logos::SpannedToks;
 use crate::span::{Span, Spanned};
+use crate::syntax::Eff as EffS;
 use crate::syntax::Id as IdS;
 use crate::syntax::*;
 
@@ -18,8 +19,45 @@ peg::parser! {
         pub rule id() -> IdS = [Tok(Id(x))] { x.to_owned() }
         pub rule sid() -> SId = spanned(<id()>)
 
-        pub rule expr() -> Expr = e:expr_lam() { e }
+        pub rule expr() -> Expr = e:expr_ann() { e }
         pub rule sexpr() -> SExpr = spanned(<expr()>)
+
+        pub rule type_() -> Type = t:type_arrow() { t }
+        pub rule stype() -> SType = spanned(<type_()>)
+
+        pub rule mult() -> Mult
+            = [Tok(Unr)] { Mult::Unr }
+            / [Tok(Lin)] { Mult::Lin }
+            / [Tok(Left)] { Mult::OrdL }
+            / [Tok(Right)] { Mult::OrdR }
+        pub rule smult() -> SMult = spanned(<mult()>)
+
+        pub rule effect() -> EffS
+            = [Tok(Pure)] { EffS::No }
+            / [Tok(Eff)] { EffS::Yes }
+        pub rule seffect() -> SEff = spanned(<effect()>)
+
+        #[cache_left_rec]
+        pub rule type_arrow() -> Type
+            = t1:stype_arrow() [Tok(Dash)] [Tok(BracketL)] m:smult() [Tok(Semicolon)] e:seffect() [Tok(BracketR)] [Tok(Arrow)] t2:stype_prod() { Type::Arr(m, e, Box::new(t1), Box::new(t2)) }
+            / t:type_prod() { t }
+        pub rule stype_arrow() -> SType = spanned(<type_arrow()>)
+
+        pub rule type_prod() -> Type
+            = t1:stype_atom() [Tok(Star)] [Tok(BracketL)] m:smult() [Tok(BracketR)] t2:stype_prod() { Type::Prod(m, Box::new(t1), Box::new(t2)) }
+            / t:type_atom() { t }
+         
+        pub rule stype_prod() -> SType = spanned(<type_prod()>)
+
+        pub rule type_atom() -> Type
+            = [Tok(UnitT)] { Type::Unit }
+            // TODO: Regex
+        pub rule stype_atom() -> SType = spanned(<type_atom()>)
+
+        pub rule expr_ann() -> Expr
+            = e:sexpr_lam() [Tok(Colon)] t:stype() { Expr::Ann(Box::new(e), t) }
+            / e:expr_lam() { e }
+        pub rule sexpr_ann() -> SExpr = spanned(<expr_ann()>)
 
         pub rule expr_lam() -> Expr
             = [Tok(Lambda)] x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(x, Box::new(e)) }
