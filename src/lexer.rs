@@ -54,6 +54,14 @@ pub enum Token<'a> {
     Import,
     #[token("not")]
     Not,
+    #[token("split")]
+    Split,
+    #[token("unit")]
+    Unit,
+    #[token("Unit")]
+    UnitT,
+    #[token("close")]
+    Close,
 
     // Operators
     #[token(";")]

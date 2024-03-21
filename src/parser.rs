@@ -23,6 +23,7 @@ peg::parser! {
 
         pub rule expr_lam() -> Expr
             = [Tok(Lambda)] x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(x, Box::new(e)) }
+            / [Tok(Let)] x:sid() [Tok(Comma)] y:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::Let(x, y, Box::new(e1), Box::new(e2)) }
             / e:expr_app() { e }
         pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
 
@@ -32,10 +33,27 @@ peg::parser! {
             / e:expr_atom() { e }
         pub rule sexpr_app() -> SExpr = spanned(<expr_app()>)
 
+        #[cache]
         pub rule expr_atom() -> Expr
-            = x:sid() { Expr::Var(x.to_owned()) }
-            / [Tok(ParenL)] e:expr() [Tok(ParenR)] { e }
+            = [Tok(ParenL)] e:expr() [Tok(ParenR)] { e }
+            / [Tok(ParenL)] e1:sexpr() [Tok(Comma)] e2:sexpr() [Tok(ParenR)] { Expr::Pair(Box::new(e1), Box::new(e2)) }
+            / c:sconstant() { Expr::Const(c) }
+            / x:sid() { Expr::Var(x.to_owned()) }
         pub rule sexpr_atom() -> SExpr = spanned(<expr_atom()>)
+
+        pub rule constant() -> Const
+            = [Tok(Unit)] { Const::Unit }
+            / [Tok(New)] r:sregex() { Const::New(r) }
+            / [Tok(Bang)] w:sword() { Const::Write(w) }
+            / [Tok(Split)] r:sregex() { Const::Split(r) }
+            / [Tok(Close)] { Const::Close }
+        pub rule sconstant() -> SConst = spanned(<constant()>)
+
+        pub rule regex() -> Regex = [Tok(Unit)] { () }
+        pub rule sregex() -> SRegex = spanned(<regex()>)
+
+        pub rule word() -> Word = [Tok(Unit)] { () }
+        pub rule sword() -> SWord = spanned(<word()>)
 
         pub rule program() -> Expr = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }
         pub rule sprogram() -> SExpr = spanned(<program()>)

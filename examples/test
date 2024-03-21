@@ -1,1 +1,1 @@
-λx. λy. y x (x x) (λz. z) (λw. w)
+let x, y = x in (let a, b = a in y)
