@@ -44,7 +44,7 @@ pub fn run(args: &Args) -> Result<(), IErr> {
     println!();
 
     println!("===== AST =====");
-    let e = parser::py_parser::program(&toks).map_err(IErr::Parser)?;
+    let e = parser::py_parser::sprogram(&toks).map_err(IErr::Parser)?;
     println!("{e:?}");
     println!();
 

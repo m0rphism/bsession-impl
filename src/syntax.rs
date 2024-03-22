@@ -4,6 +4,7 @@ pub type Id = String;
 pub type SId = Spanned<Id>;
 
 pub type Loc = usize;
+pub type SLoc = Spanned<Loc>;
 
 // #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 // pub enum Binop {
@@ -27,7 +28,7 @@ pub type Loc = usize;
 //     Neg,
 // }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mult {
     Unr,
     Lin,
@@ -36,7 +37,7 @@ pub enum Mult {
 }
 pub type SMult = Spanned<Mult>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Eff {
     Yes,
     No,
@@ -71,12 +72,12 @@ pub type SConst = Spanned<Const>;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Const(SConst),
-    Loc(Loc),
+    Loc(SLoc),
     Var(SId),
-    Abs(SId, Box<SExpr>),
-    App(Box<SExpr>, Box<SExpr>),
-    Pair(Box<SExpr>, Box<SExpr>),
-    Let(SId, SId, Box<SExpr>, Box<SExpr>),
+    Abs(SMult, SId, Box<SExpr>),
+    App(SMult, Box<SExpr>, Box<SExpr>),
+    Pair(SMult, Box<SExpr>, Box<SExpr>),
+    Let(SMult, SId, SId, Box<SExpr>, Box<SExpr>),
     Ann(Box<SExpr>, SType),
     // Int(i64),
     // Float(f64),

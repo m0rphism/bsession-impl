@@ -60,21 +60,21 @@ peg::parser! {
         pub rule sexpr_ann() -> SExpr = spanned(<expr_ann()>)
 
         pub rule expr_lam() -> Expr
-            = [Tok(Lambda)] x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(x, Box::new(e)) }
-            / [Tok(Let)] x:sid() [Tok(Comma)] y:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::Let(x, y, Box::new(e1), Box::new(e2)) }
+            = [Tok(Lambda)] [Tok(BracketL)] m:smult() [Tok(BracketR)] x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(m, x, Box::new(e)) }
+            / [Tok(Let)] x:sid() [Tok(Comma)] [Tok(BracketL)] m:smult() [Tok(BracketR)] y:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::Let(m, x, y, Box::new(e1), Box::new(e2)) }
             / e:expr_app() { e }
         pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
 
         #[cache_left_rec]
         pub rule expr_app() -> Expr
-            = e1:sexpr_app() e2:sexpr_atom() { Expr::App(Box::new(e1), Box::new(e2)) }
+            = e1:sexpr_app() [Tok(BracketL)] m:smult() [Tok(BracketR)] e2:sexpr_atom() { Expr::App(m, Box::new(e1), Box::new(e2)) }
             / e:expr_atom() { e }
         pub rule sexpr_app() -> SExpr = spanned(<expr_app()>)
 
         #[cache]
         pub rule expr_atom() -> Expr
             = [Tok(ParenL)] e:expr() [Tok(ParenR)] { e }
-            / [Tok(ParenL)] e1:sexpr() [Tok(Comma)] e2:sexpr() [Tok(ParenR)] { Expr::Pair(Box::new(e1), Box::new(e2)) }
+            / [Tok(ParenL)] e1:sexpr() [Tok(Comma)] [Tok(BracketL)] m:smult() [Tok(BracketR)] e2:sexpr() [Tok(ParenR)] { Expr::Pair(m, Box::new(e1), Box::new(e2)) }
             / c:sconstant() { Expr::Const(c) }
             / x:sid() { Expr::Var(x.to_owned()) }
         pub rule sexpr_atom() -> SExpr = spanned(<expr_atom()>)
