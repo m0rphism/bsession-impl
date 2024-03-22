@@ -47,7 +47,7 @@ impl Ctx {
         match self {
             Ctx::Empty => (),
             Ctx::Bind(x, t) => f(x, t),
-            Ctx::Join(c1, c2, o) => {
+            Ctx::Join(c1, c2, _o) => {
                 c1.map_binds(f);
                 c2.map_binds(f);
             }
@@ -55,7 +55,7 @@ impl Ctx {
     }
     pub fn is_unr(&self) -> bool {
         let mut unr = true;
-        self.map_binds(&mut |x, t| unr = unr && is_unr(t));
+        self.map_binds(&mut |_x, t| unr = unr && is_unr(t));
         unr
     }
     pub fn lookup_ord_pure(&self, x: &Id) -> Option<(Ctx, Type)> {
@@ -74,7 +74,7 @@ impl Ctx {
                     Some(t.clone())
                 }
             }
-            Ctx::Bind(y, t) => None,
+            Ctx::Bind(_y, _t) => None,
             Ctx::Join(c1, c2, o) => c1.lookup_ord(x).or_else(|| {
                 if c1.is_unr() || *o == JoinOrd::Ordered {
                     c2.lookup_ord(x)
