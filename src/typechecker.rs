@@ -86,6 +86,29 @@ impl Ctx {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum CtxCtx {
+    Hole,
+    JoinL(Box<CtxCtx>, Box<Ctx>, JoinOrd),
+    JoinR(Box<Ctx>, Box<CtxCtx>, JoinOrd),
+}
+
+impl CtxCtx {
+    pub fn fill(&self, c: Ctx) -> Ctx {
+        match self {
+            CtxCtx::Hole => c,
+            CtxCtx::JoinL(cc1, c2, o) => Ctx::Join(Box::new(cc1.fill(c)), c2.clone(), o.clone()),
+            CtxCtx::JoinR(c1, cc2, o) => Ctx::Join(c1.clone(), Box::new(cc2.fill(c)), o.clone()),
+        }
+    }
+}
+
+pub type Trace = Vec<(SId, SType)>;
+
+pub fn models(T: &Trace, C: &Ctx) -> Option<CtxCtx> {
+    None
+}
+
 pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx), TypeError> {
     Ok((Eff::No, Ctx::Empty))
 }
