@@ -205,14 +205,14 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
             "{c:?} is not canonical. Original: {self:?}"
         );
         // c.deriv_re_(e)
-        let x = derive_re::gfp(HashSet::new(), &c, e);
-        eprintln!("–––––––––––––––––––––––––––––––");
-        for (r, s) in &x {
-            eprintln!("{r:?}");
-            eprintln!("{s:?}");
-            eprintln!("");
-        }
-        eprintln!("–––––––––––––––––––––––––––––––");
+        let x = derive_re::gfp(HashSet::new(), e, &c);
+        // eprintln!("–––––––––––––––––––––––––––––––");
+        // for (r, s) in &x {
+        //     eprintln!("{r:?}");
+        //     eprintln!("{s:?}");
+        //     eprintln!("");
+        // }
+        // eprintln!("–––––––––––––––––––––––––––––––");
         let y = derive_re::gamma_set(&x);
         y
     }
@@ -267,21 +267,12 @@ mod derive_re {
         }
     }
 
-    // FIXME: Flipped compared to paperr
     pub fn gamma<C: Copy>(r: &Regex<C>, s: &Regex<C>) -> Regex<C> {
-        match s {
-            Regex::Eps => r.clone(),
+        match r {
+            Regex::Eps => s.clone(),
             _ => neg(empty),
         }
     }
-
-    // ORIGINAL VERSION
-    // pub fn gamma<C: Copy>(r: &Regex<C>, s: &Regex<C>) -> Regex<C> {
-    //     match r {
-    //         Regex::Eps => s.clone(),
-    //         _ => neg(empty),
-    //     }
-    // }
 
     pub fn gamma_set<C: Copy + Hash>(x: &HashSet<(Regex<C>, Regex<C>)>) -> Regex<C> {
         let mut e = neg(empty);
@@ -353,8 +344,7 @@ mod tests {
         let e2 = char('a');
         let e = e1.deriv_re(&e2);
         let e = e.simplify();
-        eprintln!("XXX {:?}", e);
-        eprintln!("YYY {:?}", e2.deriv_re(&e1).simplify());
+        eprintln!("{:?}", e);
         assert_eq!(e, star(char('a')));
     }
 }
