@@ -28,7 +28,7 @@ pub type SLoc = Spanned<Loc>;
 //     Neg,
 // }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mult {
     Unr,
     Lin,
@@ -37,7 +37,7 @@ pub enum Mult {
 }
 pub type SMult = Spanned<Mult>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Eff {
     Yes,
     No,

@@ -97,7 +97,7 @@ impl Pretty<UserState> for Expr {
         match self {
             Expr::Var(x) => p.str(&x.val),
             Expr::Abs(m, x, e) => p.infix(1, R, |p| {
-                p.pp("λ[ ");
+                p.pp("λ[");
                 p.pp(m);
                 p.pp("] ");
                 p.pp(x);

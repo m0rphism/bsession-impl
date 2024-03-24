@@ -1,1 +1,1 @@
-let x, y = x in (let a, b = a in y)
+λ[unr] x. x : Unit -[ unr; pure ]→ Unit
