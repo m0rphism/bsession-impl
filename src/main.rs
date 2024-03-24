@@ -4,6 +4,7 @@ pub mod lexer_offside;
 pub mod parser;
 pub mod peg_logos;
 pub mod pretty;
+pub mod regex;
 pub mod span;
 pub mod syntax;
 pub mod to_str;
