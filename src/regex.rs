@@ -152,7 +152,7 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
                 (_e1, Regex::Empty) => empty,
                 (Regex::Eps, e2) => e2,
                 (e1, Regex::Eps) => e1,
-                (e1, e2) => or(e1, e2),
+                (e1, e2) => seq(e1, e2),
             },
             Regex::Star(e) => match e.simplify() {
                 Regex::Empty => eps,
@@ -346,5 +346,15 @@ mod tests {
         let e = e.simplify();
         eprintln!("{:?}", e);
         assert_eq!(e, star(char('a')));
+    }
+
+    #[test]
+    fn test_deriv_re_6() {
+        let e1 = star(seq(char('a'), char('b')));
+        let e2 = char('a');
+        let e = e1.deriv_re(&e2);
+        let e = e.simplify();
+        eprintln!("{:?}", e);
+        assert_eq!(e, seq(char('b'), star(seq(char('a'), char('b')))));
     }
 }
