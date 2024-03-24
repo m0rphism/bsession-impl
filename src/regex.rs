@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,6 +31,21 @@ pub fn star<C>(e: Regex<C>) -> Regex<C> {
 }
 pub fn neg<C>(e: Regex<C>) -> Regex<C> {
     Regex::Neg(Box::new(e))
+}
+
+impl<C: Display> Display for Regex<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Regex::Empty => write!(f, "∅"),
+            Regex::Eps => write!(f, "ε"),
+            Regex::Char(c) => write!(f, "{c}"),
+            Regex::Or(e1, e2) => write!(f, "({e1}|{e2})"),
+            Regex::And(e1, e2) => write!(f, "({e1}&{e2})"),
+            Regex::Seq(e1, e2) => write!(f, "({e1}{e2})"),
+            Regex::Star(e) => write!(f, "({e}*)"),
+            Regex::Neg(e) => write!(f, "(~{e})"),
+        }
+    }
 }
 
 impl<C: Copy + Debug + Eq + Hash> Regex<C> {
@@ -304,7 +319,7 @@ mod tests {
         let e2 = char('a');
         let e = e1.deriv_re(&e2);
         let e = e.simplify();
-        eprintln!("{:?}", e);
+        eprintln!("{}", e);
         assert_eq!(e, char('b'));
     }
 
@@ -314,7 +329,7 @@ mod tests {
         let e2 = seq(char('a'), char('b'));
         let e = e1.deriv_re(&e2);
         let e = e.simplify();
-        eprintln!("{:?}", e);
+        eprintln!("{}", e);
         assert_eq!(e, eps);
     }
 
@@ -324,7 +339,7 @@ mod tests {
         let e2 = char('c');
         let e = e1.deriv_re(&e2);
         let e = e.simplify();
-        eprintln!("{:?}", e);
+        eprintln!("{}", e);
         assert_eq!(e, eps);
     }
 
@@ -334,7 +349,7 @@ mod tests {
         let e2 = char('d');
         let e = e1.deriv_re(&e2);
         let e = e.simplify();
-        eprintln!("{:?}", e);
+        eprintln!("{}", e);
         assert_eq!(e, empty);
     }
 
@@ -344,7 +359,7 @@ mod tests {
         let e2 = char('a');
         let e = e1.deriv_re(&e2);
         let e = e.simplify();
-        eprintln!("{:?}", e);
+        eprintln!("{}", e);
         assert_eq!(e, star(char('a')));
     }
 
@@ -354,7 +369,7 @@ mod tests {
         let e2 = char('a');
         let e = e1.deriv_re(&e2);
         let e = e.simplify();
-        eprintln!("{:?}", e);
+        eprintln!("{}", e);
         assert_eq!(e, seq(char('b'), star(seq(char('a'), char('b')))));
     }
 }
