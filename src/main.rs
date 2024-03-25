@@ -5,9 +5,11 @@ pub mod parser;
 pub mod pretty;
 pub mod regex;
 pub mod syntax;
-pub mod tests;
 pub mod typechecker;
 pub mod util;
+
+#[cfg(test)]
+mod tests;
 
 use std::process::exit;
 

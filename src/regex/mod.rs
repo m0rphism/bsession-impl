@@ -5,6 +5,8 @@ pub mod pattern;
 pub mod pretty;
 pub mod regex;
 pub mod regex_to_dfa;
+
+#[cfg(test)]
 mod tests;
 
 #[doc(inline)]
