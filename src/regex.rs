@@ -582,6 +582,29 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Realizable> DFA<C> {
             }
         }
     }
+
+    pub fn is_subseteq_of(&self, other: &Self) -> bool {
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::from([(self.init, other.init)]);
+        while let Some((s1, s2)) = queue.pop_front() {
+            if visited.insert(s1) {
+                if self.finals.contains(&s1) && !other.finals.contains(&s2) {
+                    return false;
+                }
+                for (c, t1) in &self.states[&s1] {
+                    if let Some(t2) = other.states[&s2].get(&c) {
+                        queue.push_back((*t1, *t2));
+                    } else {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+    pub fn is_equal_to(&self, other: &Self) -> bool {
+        self.is_subseteq_of(other) && other.is_subseteq_of(self)
+    }
 }
 
 impl<C: Copy + Debug + Eq + Hash + Display + Example> GNFA<C> {
