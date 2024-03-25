@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use logos::{Lexer, Logos};
 use peg::{Parse, ParseElem, ParseSlice, RuleResult};
 
-use crate::span::{Span, Spanned};
+use crate::util::span::{Span, Spanned};
 
 pub struct SpannedToks<'a, T: 'a> {
     pub src: &'a str,

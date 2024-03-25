@@ -1,4 +1,4 @@
-use crate::{regex, span::Spanned};
+use crate::{regex, util::span::Spanned};
 
 pub type Id = String;
 pub type SId = Spanned<Id>;

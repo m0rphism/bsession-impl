@@ -1,4 +1,4 @@
-use crate::pretty::{Assoc, Pretty, PrettyEnv};
+use crate::util::pretty::{Assoc, Pretty, PrettyEnv};
 
 use super::regex::Regex;
 

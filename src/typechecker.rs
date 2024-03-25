@@ -1,7 +1,7 @@
 use crate::{
     regex::Regex,
-    span::Spanned,
     syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
+    util::span::Spanned,
 };
 
 pub fn lub(p1: Eff, p2: Eff) -> Eff {

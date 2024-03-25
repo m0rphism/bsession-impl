@@ -1,14 +1,11 @@
 pub mod args;
 pub mod lexer;
-pub mod lexer_offside;
 pub mod parser;
-pub mod peg_logos;
-pub mod pretty;
 pub mod regex;
-pub mod span;
 pub mod syntax;
-pub mod to_str;
+pub mod pretty;
 pub mod typechecker;
+pub mod util;
 
 use std::ops::Range;
 
@@ -21,8 +18,8 @@ use typechecker::TypeError;
 
 use crate::{
     lexer::Token,
-    lexer_offside::Braced,
-    pretty::{pretty, PrettyOpts},
+    util::lexer_offside::{self, Braced},
+    util::pretty::{pretty, PrettyOpts},
 };
 
 pub enum IErr {

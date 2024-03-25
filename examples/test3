@@ -1,1 +1,1 @@
-! 'x' (new {x}) : {}
+close (! 'x' (new {x})) : Unit

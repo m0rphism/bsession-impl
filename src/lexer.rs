@@ -2,7 +2,7 @@ use std::{error::Error, fmt::Display};
 
 use logos::{Lexer, Logos};
 
-use crate::{
+use crate::util::{
     peg_logos::SpannedToks,
     span::{Span, Spanned},
 };

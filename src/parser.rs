@@ -1,12 +1,12 @@
 use crate::lexer::Token;
-use crate::lexer_offside::Braced;
-use crate::peg_logos::SpannedToks;
 use crate::regex::parser::regex_parser;
 use crate::regex::Regex as RegexS;
-use crate::span::{Span, Spanned};
 use crate::syntax::Eff as EffS;
 use crate::syntax::Id as IdS;
 use crate::syntax::*;
+use crate::util::lexer_offside::Braced;
+use crate::util::peg_logos::SpannedToks;
+use crate::util::span::{Span, Spanned};
 
 use Braced::Token as Tok;
 
