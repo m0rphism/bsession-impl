@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -17,6 +17,8 @@ pub enum Regex<C> {
 pub use Regex::Char as char;
 pub use Regex::Empty as empty;
 pub use Regex::Eps as eps;
+
+use crate::pattern::{self, Example, Finite, Pattern};
 pub fn or<C>(e1: Regex<C>, e2: Regex<C>) -> Regex<C> {
     Regex::Or(Box::new(e1), Box::new(e2))
 }
@@ -298,6 +300,241 @@ mod derive_re {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct DFA<C> {
+    pub states: HashMap<usize, Vec<(Pattern<C>, usize)>>,
+    pub init: usize,
+    pub finals: HashSet<usize>,
+}
+
+impl<C: Display + Hash + Ord> Display for DFA<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "init: {}\n", self.init)?;
+        write!(f, "finals: {:?}\n", self.finals)?;
+        write!(f, "states:\n")?;
+        let mut states = self.states.iter().collect::<Vec<_>>();
+        states.sort_by_key(|(k, _)| **k);
+        for (s, tgts) in states {
+            write!(f, "  {s}:\n")?;
+            for (p, t) in tgts {
+                write!(f, "    {t}: {p}\n")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<C: Copy + Debug + Eq + Hash + Display + Example> Regex<C> {
+    pub fn to_dfa(&self) -> DFA<C> {
+        let init = 0;
+        let mut finals = HashSet::new();
+        let mut states = HashMap::new();
+        states.insert(init, vec![]);
+        let mut cache = HashMap::new();
+        let e = self.simplify();
+        cache.insert(e.clone(), init);
+        e.to_dfa_(init, &mut states, &mut finals, &mut cache);
+        DFA {
+            init,
+            finals,
+            states,
+        }
+    }
+    pub fn to_dfa_(
+        &self,
+        cur_state: usize,
+        states: &mut HashMap<usize, Vec<(Pattern<C>, usize)>>,
+        finals: &mut HashSet<usize>,
+        cache: &mut HashMap<Regex<C>, usize>,
+    ) {
+        // println!("Converting {}", self);
+        if self.nullable() {
+            finals.insert(cur_state);
+        }
+        for p in self.partitions() {
+            if let Some(c) = C::example(&p) {
+                let e = self.deriv(c).simplify();
+                let mut is_new = false;
+                let tgt_state = *cache.entry(e.clone()).or_insert_with(|| {
+                    let i = states.len();
+                    states.insert(i, vec![]);
+                    is_new = true;
+                    i
+                });
+                states.get_mut(&cur_state).unwrap().push((p, tgt_state));
+                if is_new {
+                    e.to_dfa_(tgt_state, states, finals, cache);
+                }
+            }
+        }
+    }
+
+    pub fn partitions(&self) -> Vec<Pattern<C>> {
+        match self {
+            Regex::Empty => vec![Pattern::everything()],
+            Regex::Eps => vec![Pattern::everything()],
+            Regex::Char(c) => vec![
+                Pattern::positive_char(c.clone()),
+                Pattern::negative_char(c.clone()),
+            ],
+            Regex::Or(e1, e2) => pattern::cartesian_intersection(e1.partitions(), e2.partitions()),
+            Regex::And(e1, e2) => pattern::cartesian_intersection(e1.partitions(), e2.partitions()),
+            Regex::Seq(e1, e2) if e1.nullable() => {
+                pattern::cartesian_intersection(e1.partitions(), e2.partitions())
+            }
+            Regex::Seq(e1, _) => e1.partitions(),
+            Regex::Star(e) => e.partitions(),
+            Regex::Neg(e) => e.partitions(),
+        }
+    }
+}
+
+pub struct GNFA<C> {
+    pub init: usize,
+    pub final_: usize,
+    pub states: HashMap<usize, HashMap<usize, Regex<C>>>,
+}
+
+impl<C: Copy + Debug + Eq + Hash + Display + Example> Pattern<C> {
+    pub fn to_regex(&self) -> Regex<C> {
+        let mut r = empty;
+        for c in &self.chars {
+            r = or(r, char(*c));
+        }
+        if !self.positive {
+            r = neg(r);
+        }
+        r
+    }
+}
+
+impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
+    pub fn next_free_state(&self) -> usize {
+        self.states.keys().max().map(|i| *i + 1).unwrap_or(0)
+    }
+    pub fn to_gnfa(&self) -> GNFA<C> {
+        let init = self.next_free_state();
+        let final_ = init + 1;
+        let mut states = HashMap::new();
+        for (s, tgts) in &self.states {
+            let mut tgts_out = HashMap::new();
+            if self.finals.contains(s) {
+                tgts_out.insert(final_, eps);
+            }
+            for (p, tgt) in tgts {
+                tgts_out.insert(*tgt, p.to_regex());
+            }
+            states.insert(*s, tgts_out);
+        }
+
+        states.insert(final_, HashMap::new());
+
+        let mut init_tgts = HashMap::new();
+        init_tgts.insert(self.init, eps);
+        states.insert(init, init_tgts);
+
+        GNFA {
+            init,
+            final_,
+            states,
+        }
+    }
+    pub fn to_regex(&self) -> Regex<C> {
+        self.to_gnfa().to_regex()
+    }
+    pub fn remove_unreachable_states(&mut self) {
+        let mut reachable = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(self.init);
+        while let Some(s) = queue.pop_front() {
+            reachable.insert(s);
+            let tgts = self.states.get_mut(&s).unwrap();
+            let mut remove = vec![];
+            for (i, (p, t)) in tgts.iter().enumerate() {
+                if C::is_empty(&p) {
+                    remove.push(i);
+                } else {
+                    queue.push_back(*t);
+                }
+            }
+            remove.sort_by(|x, y| y.cmp(x));
+            for i in remove {
+                tgts.remove(i);
+            }
+        }
+        let keys = self.states.keys().cloned().collect::<Vec<_>>();
+        for s in keys {
+            if !reachable.contains(&s) {
+                self.states.remove(&s);
+            }
+        }
+    }
+    pub fn sources(&self, tgt: usize) -> HashMap<usize, &Pattern<C>> {
+        let mut srcs = HashMap::new();
+        for (src, tgts) in &self.states {
+            if let Some((p, _)) = tgts.iter().find(|(_, tgt2)| tgt == *tgt2) {
+                srcs.insert(*src, p);
+            }
+        }
+        srcs
+    }
+    pub fn merge_duplicate_states(&mut self) {
+        let finals = self.finals.iter().cloned().collect::<BTreeSet<_>>();
+        let states = self.states.keys().cloned().collect::<BTreeSet<_>>();
+        let non_finals = states.difference(&finals).cloned().collect::<BTreeSet<_>>();
+
+        let mut partitions = HashSet::from([finals.clone(), non_finals.clone()]);
+        let mut queue = VecDeque::from([finals.clone(), non_finals.clone()]);
+
+        while let Some(x) = queue.pop_front() {
+            //
+        }
+    }
+}
+
+impl<C: Copy + Debug + Eq + Hash + Display + Example> GNFA<C> {
+    pub fn remove_sources(&mut self, s: usize) -> HashMap<usize, Regex<C>> {
+        let mut srcs = HashMap::new();
+        for (src, tgts) in &mut self.states {
+            if let Some(r) = tgts.remove(&s) {
+                srcs.insert(*src, r);
+            }
+        }
+        srcs
+    }
+    pub fn to_regex(self) -> Regex<C> {
+        let mut a = self;
+        while a.states.len() > 2 {
+            let s = *a
+                .states
+                .keys()
+                .find(|k| **k != a.init && **k != a.final_)
+                .unwrap();
+            let mut tgts = a.states.remove(&s).unwrap();
+            let srcs = a.remove_sources(s);
+            let loop_r = tgts.remove(&s).map(star);
+            for (src, src_r) in &srcs {
+                for (tgt, tgt_r) in &tgts {
+                    let r = if let Some(loop_r) = &loop_r {
+                        seq(src_r.clone(), seq(loop_r.clone(), tgt_r.clone()))
+                    } else {
+                        seq(src_r.clone(), tgt_r.clone())
+                    };
+                    // a.states.get_mut(src).unwrap().insert(*tgt, r);
+                    let r2 = r.clone();
+                    a.states
+                        .get_mut(src)
+                        .unwrap()
+                        .entry(*tgt)
+                        .and_modify(|v| *v = or(v.clone(), r))
+                        .or_insert(r2);
+                }
+            }
+        }
+        a.states[&a.init].iter().next().unwrap().1.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,5 +608,12 @@ mod tests {
         let e = e.simplify();
         eprintln!("{}", e);
         assert_eq!(e, seq(char('b'), star(seq(char('a'), char('b')))));
+    }
+
+    #[test]
+    fn test_re_to_dfa_to_re_1() {
+        let e1 = star(seq(char('a'), char('b')));
+        // eprintln!("{}", e1.to_dfa());
+        assert_eq!(e1, e1.to_dfa().to_regex().simplify());
     }
 }

@@ -2,6 +2,7 @@ pub mod args;
 pub mod lexer;
 pub mod lexer_offside;
 pub mod parser;
+pub mod pattern;
 pub mod peg_logos;
 pub mod pretty;
 pub mod regex;
