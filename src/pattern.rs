@@ -177,8 +177,40 @@ impl<C: Display + Ord> Display for Pattern<C> {
     }
 }
 
+pub trait Realizable: Sized {
+    fn realize(p: &Pattern<Self>) -> HashSet<Self>;
+}
+
+impl<C: Realizable> Pattern<C> {
+    pub fn realize(&self) -> HashSet<C> {
+        C::realize(&self)
+    }
+}
+
+impl Realizable for u8 {
+    fn realize(p: &Pattern<Self>) -> HashSet<Self> {
+        if p.positive {
+            p.chars.clone()
+        } else {
+            let mut chars = HashSet::new();
+            for c in 0..=255 {
+                if !p.chars.contains(&c) {
+                    chars.insert(c);
+                }
+            }
+            chars
+        }
+    }
+}
+
 pub trait Example: Sized {
     fn example(p: &Pattern<Self>) -> Option<Self>;
+}
+
+impl<C: Example> Pattern<C> {
+    pub fn example(&self) -> Option<C> {
+        C::example(&self)
+    }
 }
 
 impl Example for u8 {
@@ -231,9 +263,9 @@ impl Finite for u8 {
     }
 }
 
-impl Finite for char {
-    fn is_empty(p: &Pattern<Self>) -> bool {
-        // FIXME: we need to get an exhaustive list of unicode chars or remove patterns...
-        p.positive && p.chars.len() == 0
-    }
-}
+// FIXME: we need to get an exhaustive list of unicode chars or remove patterns...
+// impl Finite for char {
+//     fn is_empty(p: &Pattern<Self>) -> bool {
+//         p.positive && p.chars.len() == 0
+//     }
+// }

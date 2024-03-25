@@ -18,7 +18,7 @@ pub use Regex::Char as char;
 pub use Regex::Empty as empty;
 pub use Regex::Eps as eps;
 
-use crate::pattern::{self, Example, Finite, Pattern};
+use crate::pattern::{self, Example, Finite, Pattern, Realizable};
 pub fn or<C>(e1: Regex<C>, e2: Regex<C>) -> Regex<C> {
     Regex::Or(Box::new(e1), Box::new(e2))
 }
@@ -302,7 +302,7 @@ mod derive_re {
 
 #[derive(Clone, Debug)]
 pub struct DFA<C> {
-    pub states: HashMap<usize, Vec<(Pattern<C>, usize)>>,
+    pub states: HashMap<usize, HashMap<C, usize>>,
     pub init: usize,
     pub finals: HashSet<usize>,
 }
@@ -324,12 +324,12 @@ impl<C: Display + Hash + Ord> Display for DFA<C> {
     }
 }
 
-impl<C: Copy + Debug + Eq + Hash + Display + Example> Regex<C> {
+impl<C: Copy + Debug + Eq + Hash + Display + Example + Realizable> Regex<C> {
     pub fn to_dfa(&self) -> DFA<C> {
         let init = 0;
         let mut finals = HashSet::new();
         let mut states = HashMap::new();
-        states.insert(init, vec![]);
+        states.insert(init, HashMap::new());
         let mut cache = HashMap::new();
         let e = self.simplify();
         cache.insert(e.clone(), init);
@@ -343,7 +343,7 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example> Regex<C> {
     pub fn to_dfa_(
         &self,
         cur_state: usize,
-        states: &mut HashMap<usize, Vec<(Pattern<C>, usize)>>,
+        states: &mut HashMap<usize, HashMap<C, usize>>,
         finals: &mut HashSet<usize>,
         cache: &mut HashMap<Regex<C>, usize>,
     ) {
@@ -352,16 +352,18 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example> Regex<C> {
             finals.insert(cur_state);
         }
         for p in self.partitions() {
-            if let Some(c) = C::example(&p) {
+            if let Some(c) = p.example() {
                 let e = self.deriv(c).simplify();
                 let mut is_new = false;
                 let tgt_state = *cache.entry(e.clone()).or_insert_with(|| {
                     let i = states.len();
-                    states.insert(i, vec![]);
+                    states.insert(i, HashMap::new());
                     is_new = true;
                     i
                 });
-                states.get_mut(&cur_state).unwrap().push((p, tgt_state));
+                for c in p.realize() {
+                    states.get_mut(&cur_state).unwrap().insert(c, tgt_state);
+                }
                 if is_new {
                     e.to_dfa_(tgt_state, states, finals, cache);
                 }
@@ -421,8 +423,8 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
             if self.finals.contains(s) {
                 tgts_out.insert(final_, eps);
             }
-            for (p, tgt) in tgts {
-                tgts_out.insert(*tgt, p.to_regex());
+            for (c, tgt) in tgts {
+                tgts_out.insert(*tgt, char(*c));
             }
             states.insert(*s, tgts_out);
         }
@@ -449,17 +451,8 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
         while let Some(s) = queue.pop_front() {
             reachable.insert(s);
             let tgts = self.states.get_mut(&s).unwrap();
-            let mut remove = vec![];
-            for (i, (p, t)) in tgts.iter().enumerate() {
-                if C::is_empty(&p) {
-                    remove.push(i);
-                } else {
-                    queue.push_back(*t);
-                }
-            }
-            remove.sort_by(|x, y| y.cmp(x));
-            for i in remove {
-                tgts.remove(i);
+            for (_c, t) in tgts.iter() {
+                queue.push_back(*t);
             }
         }
         let keys = self.states.keys().cloned().collect::<Vec<_>>();
@@ -469,11 +462,11 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
             }
         }
     }
-    pub fn sources(&self, tgt: usize) -> HashMap<usize, &Pattern<C>> {
+    pub fn sources(&self, tgt: usize) -> HashMap<usize, C> {
         let mut srcs = HashMap::new();
         for (src, tgts) in &self.states {
-            if let Some((p, _)) = tgts.iter().find(|(_, tgt2)| tgt == *tgt2) {
-                srcs.insert(*src, p);
+            if let Some((c, _)) = tgts.iter().find(|(_, tgt2)| tgt == **tgt2) {
+                srcs.insert(*src, *c);
             }
         }
         srcs
@@ -612,7 +605,7 @@ mod tests {
 
     #[test]
     fn test_re_to_dfa_to_re_1() {
-        let e1 = star(seq(char('a'), char('b')));
+        let e1 = star(seq(char(b'a'), char(b'b')));
         // eprintln!("{}", e1.to_dfa());
         assert_eq!(e1, e1.to_dfa().to_regex().simplify());
     }
