@@ -1,7 +1,7 @@
 use crate::{
     regex::Regex,
     span::Spanned,
-    syntax::{Const, Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SType, Type},
+    syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
 };
 
 pub fn lub(p1: Eff, p2: Eff) -> Eff {
@@ -20,6 +20,10 @@ pub enum TypeError {
     MismatchMult(SMult, SMult),
     MismatchEff(SEff, SEff),
     TypeAnnotationMissing(SExpr),
+    ClosedUnfinished(SExpr, SRegex),
+    InvalidWrite(SRegex, SWord),
+    InvalidSplitArg(SRegex, SRegex),
+    InvalidSplitRes(SRegex, SRegex),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,44 +123,44 @@ pub fn fake_span<T>(t: T) -> Spanned<T> {
     Spanned::new(t, 0..0)
 }
 
-// TODO: we can make them inferable, by using actual expressions instead of consts.
-pub fn check_const(c: &Const, t: &SType) -> Result<(), TypeError> {
-    match (c, &t.val) {
-        (Const::Unit, Type::Unit) => Ok(()),
-        (Const::Unit, _) => Err(TypeError::Mismatch(fake_span(Type::Unit), t.clone())),
-        (Const::New(r1), Type::Regex(r2)) if r1.is_equal_to(r2) => Ok(()),
-        (Const::New(r), _) => Err(TypeError::Mismatch(
-            fake_span(Type::Regex(r.clone())),
-            t.clone(),
-        )),
-        (Const::Write(w), Type::Unit) => todo!(),
-        (Const::Write(_), Type::Regex(_)) => todo!(),
-        (Const::Write(_), Type::Arr(_, _, _, _)) => todo!(),
-        (Const::Write(_), Type::Prod(_, _, _)) => todo!(),
-        (Const::Split(_), Type::Unit) => todo!(),
-        (Const::Split(_), Type::Regex(_)) => todo!(),
-        (Const::Split(_), Type::Arr(_, _, _, _)) => todo!(),
-        (Const::Split(_), Type::Prod(_, _, _)) => todo!(),
-        (Const::Close, Type::Unit) => todo!(),
-        (Const::Close, Type::Regex(_)) => todo!(),
-        (Const::Close, Type::Arr(_, _, _, _)) => todo!(),
-        (Const::Close, Type::Prod(_, _, _)) => todo!(),
-    }
-    // Const::Unit => Ok(fake_span(Type::Unit)),
-    // Const::New(r) if t.val == Type::Regex(r2) && r2 == r => Type::Regex(r.clone()),
-    // Const::New(r) => Type::Regex(r.clone()),
-    // Const::Write(w) => {
-    //     let r = ();
-    //     Type::Arr(
-    //         fake_span(Mult::Unr),
-    //         fake_span(Eff::Yes),
-    //         Box::new(fake_span(Type::Regex(fake_span(r)))),
-    //         Box::new(fake_span(Type::Regex(fake_span(r)))),
-    //     )
-    // }
-    // Const::Split(r) => todo!(),
-    // Const::Close => todo!(),
-}
+// // TODO: we can make them inferable, by using actual expressions instead of consts.
+// pub fn check_const(c: &Const, t: &SType) -> Result<(), TypeError> {
+//     match (c, &t.val) {
+//         (Const::Unit, Type::Unit) => Ok(()),
+//         (Const::Unit, _) => Err(TypeError::Mismatch(fake_span(Type::Unit), t.clone())),
+//         (Const::New(r1), Type::Regex(r2)) if r1.is_equal_to(r2) => Ok(()),
+//         (Const::New(r), _) => Err(TypeError::Mismatch(
+//             fake_span(Type::Regex(r.clone())),
+//             t.clone(),
+//         )),
+//         (Const::Write(w), Type::Unit) => todo!(),
+//         (Const::Write(_), Type::Regex(_)) => todo!(),
+//         (Const::Write(_), Type::Arr(_, _, _, _)) => todo!(),
+//         (Const::Write(_), Type::Prod(_, _, _)) => todo!(),
+//         (Const::Split(_), Type::Unit) => todo!(),
+//         (Const::Split(_), Type::Regex(_)) => todo!(),
+//         (Const::Split(_), Type::Arr(_, _, _, _)) => todo!(),
+//         (Const::Split(_), Type::Prod(_, _, _)) => todo!(),
+//         (Const::Close, Type::Unit) => todo!(),
+//         (Const::Close, Type::Regex(_)) => todo!(),
+//         (Const::Close, Type::Arr(_, _, _, _)) => todo!(),
+//         (Const::Close, Type::Prod(_, _, _)) => todo!(),
+//     }
+//     // Const::Unit => Ok(fake_span(Type::Unit)),
+//     // Const::New(r) if t.val == Type::Regex(r2) && r2 == r => Type::Regex(r.clone()),
+//     // Const::New(r) => Type::Regex(r.clone()),
+//     // Const::Write(w) => {
+//     //     let r = ();
+//     //     Type::Arr(
+//     //         fake_span(Mult::Unr),
+//     //         fake_span(Eff::Yes),
+//     //         Box::new(fake_span(Type::Regex(fake_span(r)))),
+//     //         Box::new(fake_span(Type::Regex(fake_span(r)))),
+//     //     )
+//     // }
+//     // Const::Split(r) => todo!(),
+//     // Const::Close => todo!(),
+// }
 
 impl Mult {
     pub fn to_join_ord(&self) -> JoinOrd {
@@ -185,10 +189,10 @@ pub fn leq(e1: Eff, e2: Eff) -> bool {
 
 pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx, Ctx), TypeError> {
     match &e.val {
-        Expr::Const(c) => {
-            let t = check_const(c, t)?;
-            Ok((Eff::No, Ctx::Empty, ctx.clone()))
-        }
+        // Expr::Const(c) => {
+        //     let t = check_const(c, t)?;
+        //     Ok((Eff::No, Ctx::Empty, ctx.clone()))
+        // }
         Expr::Loc(l) => Err(TypeError::LocationExpr(l.clone())),
         Expr::Abs(m, x, e_body) => match &t.val {
             Type::Arr(m2, _p, _t1, _t2) if m.val != m2.val => {
@@ -249,7 +253,69 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx, Ctx), TypeErr
 
 pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> {
     match &e.val {
-        Expr::Const(_c) => Err(TypeError::TypeAnnotationMissing(e.clone())),
+        Expr::Unit => Ok((fake_span(Type::Unit), Eff::No, Ctx::Empty, ctx.clone())),
+        Expr::New(r) => Ok((
+            fake_span(Type::Regex(r.clone())),
+            Eff::No,
+            Ctx::Empty,
+            ctx.clone(),
+        )),
+        Expr::Write(w, e) => {
+            let (t, _p, c1, c2) = infer(ctx, e)?;
+            match &t.val {
+                Type::Regex(r) => {
+                    let r2 = r.deriv_word(w.as_bytes().iter().cloned());
+                    if r2.is_empty() {
+                        Err(TypeError::InvalidWrite(r.clone(), w.clone()))
+                    } else {
+                        Ok((fake_span(Type::Regex(fake_span(r2))), Eff::Yes, c1, c2))
+                    }
+                }
+                _ => Err(TypeError::Mismatch(
+                    fake_span(Type::Regex(fake_span(Regex::Eps))),
+                    t.clone(),
+                )),
+            }
+        }
+        Expr::Split(r1, e) => {
+            let (t, _p, c1, c2) = infer(ctx, e)?;
+            match &t.val {
+                Type::Regex(r) => {
+                    let r2 = r.deriv_re(r1);
+                    if r1.is_empty() {
+                        Err(TypeError::InvalidSplitArg(r.clone(), r1.clone()))
+                    } else if r2.is_empty() {
+                        Err(TypeError::InvalidSplitRes(r.clone(), r1.clone()))
+                    } else {
+                        Ok((
+                            fake_span(Type::Prod(
+                                fake_span(Mult::OrdL),
+                                Box::new(fake_span(Type::Regex(r1.clone()))),
+                                Box::new(fake_span(Type::Regex(fake_span(r2)))),
+                            )),
+                            Eff::Yes,
+                            c1,
+                            c2,
+                        ))
+                    }
+                }
+                _ => Err(TypeError::Mismatch(
+                    fake_span(Type::Regex(fake_span(Regex::Eps))),
+                    t.clone(),
+                )),
+            }
+        }
+        Expr::Close(e) => {
+            let (t, p, c1, c2) = infer(ctx, e)?;
+            match &t.val {
+                Type::Regex(r) if r.nullable() => Ok((fake_span(Type::Unit), p, c1, c2)),
+                Type::Regex(r) => Err(TypeError::ClosedUnfinished(e.as_ref().clone(), r.clone())),
+                _ => Err(TypeError::Mismatch(
+                    fake_span(Type::Regex(fake_span(Regex::Eps))),
+                    t.clone(),
+                )),
+            }
+        }
         Expr::Loc(l) => Err(TypeError::LocationExpr(l.clone())),
         Expr::Var(x) => match ctx.lookup_ord_pure(x) {
             Some((ctx, t)) => Ok((t.clone(), Eff::No, Ctx::Bind(x.clone(), t.clone()), ctx)),

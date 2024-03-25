@@ -14,17 +14,16 @@ use Braced::Token as Tok;
 peg::parser! {
     pub grammar py_parser<'a>() for SpannedToks<'a, Braced<Token<'a>>> {
         use Token::*;
+
         rule spanned<T>(t: rule<T>) -> Spanned<T>
             = start:position!() x:t() end:position!() { Spanned::new(x, Span { start, end }) }
+
+        // Identifier
 
         pub rule id() -> IdS = [Tok(Id(x))] { x.to_owned() }
         pub rule sid() -> SId = spanned(<id()>)
 
-        pub rule expr() -> Expr = e:expr_ann() { e }
-        pub rule sexpr() -> SExpr = spanned(<expr()>)
-
-        pub rule type_() -> Type = t:type_arrow() { t }
-        pub rule stype() -> SType = spanned(<type_()>)
+        // Multiplicities
 
         pub rule mult() -> Mult
             = [Tok(Unr)] { Mult::Unr }
@@ -33,10 +32,17 @@ peg::parser! {
             / [Tok(Right)] { Mult::OrdR }
         pub rule smult() -> SMult = spanned(<mult()>)
 
+        // Effects
+
         pub rule effect() -> EffS
             = [Tok(Pure)] { EffS::No }
             / [Tok(Eff)] { EffS::Yes }
         pub rule seffect() -> SEff = spanned(<effect()>)
+
+        // Types
+
+        pub rule type_() -> Type = t:type_arrow() { t }
+        pub rule stype() -> SType = spanned(<type_()>)
 
         #[cache_left_rec]
         pub rule type_arrow() -> Type
@@ -55,6 +61,11 @@ peg::parser! {
             / r:sregex() { Type::Regex(r) }
         pub rule stype_atom() -> SType = spanned(<type_atom()>)
 
+        // Expressions
+
+        pub rule expr() -> Expr = e:expr_ann() { e }
+        pub rule sexpr() -> SExpr = spanned(<expr()>)
+
         pub rule expr_ann() -> Expr
             = e:sexpr_lam() [Tok(Colon)] t:stype() { Expr::Ann(Box::new(e), t) }
             / e:expr_lam() { e }
@@ -68,7 +79,11 @@ peg::parser! {
 
         #[cache_left_rec]
         pub rule expr_app() -> Expr
-            = e1:sexpr_app() [Tok(BracketL)] m:smult() [Tok(BracketR)] e2:sexpr_atom() { Expr::App(m, Box::new(e1), Box::new(e2)) }
+            = [Tok(New)] r:sregex() { Expr::New(r) }
+            / [Tok(Bang)] w:sword() e:sexpr_atom() { Expr::Write(w, Box::new(e)) }
+            / [Tok(Split)] r:sregex() e:sexpr_atom() { Expr::Split(r, Box::new(e)) }
+            / [Tok(Close)] e:sexpr_atom() { Expr::Close(Box::new(e)) }
+            / e1:sexpr_app() [Tok(BracketL)] m:smult() [Tok(BracketR)] e2:sexpr_atom() { Expr::App(m, Box::new(e1), Box::new(e2)) }
             / e:expr_atom() { e }
         pub rule sexpr_app() -> SExpr = spanned(<expr_app()>)
 
@@ -76,24 +91,23 @@ peg::parser! {
         pub rule expr_atom() -> Expr
             = [Tok(ParenL)] e:expr() [Tok(ParenR)] { e }
             / [Tok(ParenL)] e1:sexpr() [Tok(Comma)] [Tok(BracketL)] m:smult() [Tok(BracketR)] e2:sexpr() [Tok(ParenR)] { Expr::Pair(m, Box::new(e1), Box::new(e2)) }
-            / c:sconstant() { Expr::Const(c) }
+            / [Tok(Unit)] { Expr::Unit }
             / x:sid() { Expr::Var(x.to_owned()) }
         pub rule sexpr_atom() -> SExpr = spanned(<expr_atom()>)
 
-        pub rule constant() -> Const
-            = [Tok(Unit)] { Const::Unit }
-            / [Tok(New)] r:sregex() { Const::New(r) }
-            / [Tok(Bang)] w:sword() { Const::Write(w) }
-            / [Tok(Split)] r:sregex() { Const::Split(r) }
-            / [Tok(Close)] { Const::Close }
-        pub rule sconstant() -> SConst = spanned(<constant()>)
+        // Regular Expressions
 
         pub rule regex() -> RegexS<u8>
-            = [Tok(Regex(s))] {? regex_parser::expr_u8(s).map_err(|e| "Failed parsing regex") }
+            = [Tok(Regex(""))] { crate::regex::Regex::Eps }
+            / [Tok(Regex(s))] {? regex_parser::expr_u8(s).map_err(|e| "Failed parsing regex") }
         pub rule sregex() -> SRegex = spanned(<regex()>)
+
+        // Regular Expression Words
 
         pub rule word() -> Word = [Tok(Str(s))] { s.to_string() }
         pub rule sword() -> SWord = spanned(<word()>)
+
+        // Whole Programs
 
         pub rule program() -> Expr = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }
         pub rule sprogram() -> SExpr = spanned(<program()>)

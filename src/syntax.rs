@@ -60,18 +60,12 @@ pub type Word = String;
 pub type SWord = Spanned<Word>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Const {
+pub enum Expr {
     Unit,
     New(SRegex),
-    Write(SWord),
-    Split(SRegex),
-    Close,
-}
-pub type SConst = Spanned<Const>;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
-    Const(SConst),
+    Write(SWord, Box<SExpr>),
+    Split(SRegex, Box<SExpr>),
+    Close(Box<SExpr>),
     Loc(SLoc),
     Var(SId),
     Abs(SMult, SId, Box<SExpr>),

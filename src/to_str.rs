@@ -1,7 +1,7 @@
 use crate::{
     pretty::{Assoc, Pretty, PrettyEnv},
     span::Spanned,
-    syntax::{Const, Eff, Expr, Mult, Regex, Type, Word},
+    syntax::{Eff, Expr, Mult, Regex, Type, Word},
 };
 
 // #[derive(Clone)]
@@ -75,31 +75,31 @@ impl Pretty<UserState> for Eff {
 //     }
 // }
 
-impl Pretty<UserState> for Const {
-    fn pp(&self, p: &mut PrettyEnv<UserState>) {
-        match self {
-            Const::Unit => p.pp("unit"),
-            Const::New(r) => {
-                p.pp("new {");
-                p.pp_prec(0, r);
-                p.pp("}")
-            }
-            Const::Write(w) => {
-                p.pp("!");
-                p.pp(w);
-            }
-            Const::Split(r) => {
-                p.pp("split ");
-                p.pp(r);
-            }
-            Const::Close => p.pp("close"),
-        }
-    }
-}
-
 impl Pretty<UserState> for Expr {
     fn pp(&self, p: &mut PrettyEnv<UserState>) {
         match self {
+            Expr::Unit => p.pp("unit"),
+            Expr::New(r) => p.infix(2, L, |p| {
+                p.pp("new {");
+                p.pp_prec(0, r);
+                p.pp("}")
+            }),
+            Expr::Write(w, e) => p.infix(2, L, |p| {
+                p.pp("!");
+                p.pp(w);
+                p.pp(" ");
+                p.pp_arg(R, e);
+            }),
+            Expr::Split(r, e) => p.infix(2, L, |p| {
+                p.pp("split ");
+                p.pp(r);
+                p.pp(" ");
+                p.pp_arg(R, e);
+            }),
+            Expr::Close(e) => p.infix(2, L, |p| {
+                p.pp("close ");
+                p.pp_arg(R, e);
+            }),
             Expr::Var(x) => p.str(&x.val),
             Expr::Abs(m, x, e) => p.infix(1, R, |p| {
                 p.pp("λ[");
@@ -117,7 +117,6 @@ impl Pretty<UserState> for Expr {
                 p.pp(" ] ");
                 p.pp_arg(R, e2);
             }),
-            Expr::Const(c) => p.pp(c),
             Expr::Loc(l) => {
                 p.pp(&format!("#{l:?}"));
             }

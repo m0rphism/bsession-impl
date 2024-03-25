@@ -70,6 +70,18 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
             Regex::Neg(e) => !e.nullable(),
         }
     }
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Regex::Empty => true,
+            Regex::Eps => false,
+            Regex::Char(_) => false,
+            Regex::Or(e1, e2) => e1.is_empty() && e2.is_empty(),
+            Regex::And(e1, e2) => e1.is_empty() || e2.is_empty(),
+            Regex::Seq(e1, e2) => e1.is_empty() || e2.is_empty(),
+            Regex::Star(_) => false,
+            Regex::Neg(e) => !e.is_empty(),
+        }
+    }
     pub fn deriv(&self, c: C) -> Self {
         match self {
             Regex::Empty => Regex::Empty,
@@ -86,12 +98,15 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
             Regex::Neg(e) => neg(e.deriv(c)),
         }
     }
-    pub fn accepts(&self, cs: impl IntoIterator<Item = C>) -> bool {
+    pub fn deriv_word(&self, cs: impl IntoIterator<Item = C>) -> Self {
         let mut r = self.clone();
         for c in cs {
             r = r.deriv(c);
         }
-        r.nullable()
+        r
+    }
+    pub fn accepts(&self, cs: impl IntoIterator<Item = C>) -> bool {
+        self.deriv_word(cs).nullable()
     }
 
     pub fn simplify(&self) -> Regex<C> {
