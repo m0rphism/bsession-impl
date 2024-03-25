@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt::{Debug, Display};
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Regex<C> {
@@ -410,7 +410,7 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example> Pattern<C> {
     }
 }
 
-impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
+impl<C: Copy + Debug + Eq + Hash + Display + Example + Realizable> DFA<C> {
     pub fn next_free_state(&self) -> usize {
         self.states.keys().max().map(|i| *i + 1).unwrap_or(0)
     }
@@ -445,6 +445,7 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
         self.to_gnfa().to_regex()
     }
     pub fn remove_unreachable_states(&mut self) {
+        // Find reachable states
         let mut reachable = HashSet::new();
         let mut queue = VecDeque::new();
         queue.push_back(self.init);
@@ -455,10 +456,43 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
                 queue.push_back(*t);
             }
         }
+
+        // Remove unreachable states
         let keys = self.states.keys().cloned().collect::<Vec<_>>();
         for s in keys {
             if !reachable.contains(&s) {
                 self.states.remove(&s);
+            }
+        }
+    }
+    pub fn remove_dead_states(&mut self) {
+        // Find alive states
+        let mut alive = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.extend(self.finals.iter().cloned());
+        while let Some(s) = queue.pop_front() {
+            alive.insert(s);
+            for (src, _) in self.sources(s) {
+                queue.push_back(src);
+            }
+        }
+
+        // Remove dead states
+        let keys = self.states.keys().cloned().collect::<Vec<_>>();
+        for s in keys {
+            if !alive.contains(&s) {
+                self.states.remove(&s);
+            }
+        }
+
+        // Remove edges to dead
+        for tgts in self.states.values_mut() {
+            let dead = tgts
+                .iter()
+                .filter_map(|(c, tgt)| if alive.contains(tgt) { None } else { Some(*c) })
+                .collect::<HashSet<_>>();
+            for d in dead {
+                tgts.remove(&d);
             }
         }
     }
@@ -472,6 +506,7 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
         srcs
     }
     pub fn merge_duplicate_states(&mut self) {
+        // Build partitions of equivalent states
         let finals = self.finals.iter().cloned().collect::<BTreeSet<_>>();
         let states = self.states.keys().cloned().collect::<BTreeSet<_>>();
         let non_finals = states.difference(&finals).cloned().collect::<BTreeSet<_>>();
@@ -479,8 +514,61 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Finite> DFA<C> {
         let mut partitions = HashSet::from([finals.clone(), non_finals.clone()]);
         let mut queue = VecDeque::from([finals.clone(), non_finals.clone()]);
 
-        while let Some(x) = queue.pop_front() {
-            //
+        while let Some(a) = queue.pop_front() {
+            let mut a_srcs = HashSet::new();
+            for s in a {
+                a_srcs.extend(self.sources(s));
+            }
+
+            for c in Pattern::everything().realize() {
+                let x = a_srcs
+                    .iter()
+                    .cloned()
+                    .filter_map(|(s, c2)| if c2 == c { Some(s) } else { None })
+                    .collect::<BTreeSet<_>>();
+                let mut partitions2 = HashSet::new();
+                for y in partitions {
+                    let xy = x.intersection(&y).cloned().collect::<BTreeSet<_>>();
+                    let yx = y.difference(&x).cloned().collect::<BTreeSet<_>>();
+                    if !xy.is_empty() && !yx.is_empty() {
+                        partitions2.insert(xy.clone());
+                        partitions2.insert(yx.clone());
+                        if let Some(i) = queue.iter().position(|x| x == &y) {
+                            queue.remove(i);
+                            queue.push_back(xy);
+                            queue.push_back(yx);
+                        } else {
+                            if xy.len() <= yx.len() {
+                                queue.push_back(xy);
+                            } else {
+                                queue.push_back(yx);
+                            }
+                        }
+                    } else {
+                        partitions2.insert(y);
+                    }
+                }
+                partitions = partitions2;
+            }
+        }
+
+        // Replace all equivalent state with a single representing state.
+        for p in partitions {
+            if p.len() > 1 {
+                let mut it = p.into_iter();
+                let winner = it.next().unwrap();
+                let loosers = it.collect::<HashSet<_>>();
+                for looser in &loosers {
+                    self.states.remove(looser);
+                }
+                for tgts in self.states.values_mut() {
+                    for tgt in tgts.values_mut() {
+                        if loosers.contains(tgt) {
+                            *tgt = winner;
+                        }
+                    }
+                }
+            }
         }
     }
 }
