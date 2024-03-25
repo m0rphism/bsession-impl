@@ -347,7 +347,6 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Realizable> Regex<C> {
         finals: &mut HashSet<usize>,
         cache: &mut HashMap<Regex<C>, usize>,
     ) {
-        // println!("Converting {}", self);
         if self.nullable() {
             finals.insert(cur_state);
         }
@@ -444,16 +443,27 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Realizable> DFA<C> {
     pub fn to_regex(&self) -> Regex<C> {
         self.to_gnfa().to_regex()
     }
+    pub fn minimize(&mut self) {
+        self.remove_unreachable_states();
+        self.remove_dead_states();
+        self.merge_duplicate_states();
+    }
+    pub fn minimized(&self) -> Self {
+        let mut dfa = self.clone();
+        dfa.minimize();
+        dfa
+    }
     pub fn remove_unreachable_states(&mut self) {
         // Find reachable states
         let mut reachable = HashSet::new();
         let mut queue = VecDeque::new();
         queue.push_back(self.init);
         while let Some(s) = queue.pop_front() {
-            reachable.insert(s);
-            let tgts = self.states.get_mut(&s).unwrap();
-            for (_c, t) in tgts.iter() {
-                queue.push_back(*t);
+            if reachable.insert(s) {
+                let tgts = self.states.get_mut(&s).unwrap();
+                for (_c, t) in tgts.iter() {
+                    queue.push_back(*t);
+                }
             }
         }
 
@@ -471,9 +481,10 @@ impl<C: Copy + Debug + Eq + Hash + Display + Example + Realizable> DFA<C> {
         let mut queue = VecDeque::new();
         queue.extend(self.finals.iter().cloned());
         while let Some(s) = queue.pop_front() {
-            alive.insert(s);
-            for (src, _) in self.sources(s) {
-                queue.push_back(src);
+            if alive.insert(s) {
+                for (src, _) in self.sources(s) {
+                    queue.push_back(src);
+                }
             }
         }
 
@@ -694,7 +705,7 @@ mod tests {
     #[test]
     fn test_re_to_dfa_to_re_1() {
         let e1 = star(seq(char(b'a'), char(b'b')));
-        // eprintln!("{}", e1.to_dfa());
+        eprintln!("{}", e1.to_dfa().minimized());
         assert_eq!(e1, e1.to_dfa().to_regex().simplify());
     }
 }
