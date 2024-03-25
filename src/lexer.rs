@@ -54,6 +54,8 @@ pub enum Token<'a> {
     Import,
     #[token("not")]
     Not,
+    #[token("new")]
+    New,
     #[token("split")]
     Split,
     #[token("unit")]
@@ -114,6 +116,8 @@ pub enum Token<'a> {
     DoubleEquals,
     #[token("!=")]
     BangEquals,
+    #[token("!")]
+    Bang,
     #[token("=")]
     Equals,
     #[token(",")]
@@ -144,8 +148,8 @@ pub enum Token<'a> {
 
     // String
     #[regex(r#""(\\"|[^"])*""#, |lex| &lex.slice()[1..lex.slice().len()-1])]
-    #[regex(r#""(\\'|[^'])*'"#, |lex| &lex.slice()[1..lex.slice().len()-1])]
-    #[regex(r"'''(\\'|[^']|'[^']|''[^'])*'''", |lex| &lex.slice()[2..lex.slice().len()-2])]
+    #[regex(r#"'(\\'|[^'])*'"#, |lex| &lex.slice()[1..lex.slice().len()-1])]
+    #[regex(r"'''(\\'|[^']|'[^']|''[^'])*'''", |lex| &lex.slice()[3..lex.slice().len()-3])]
     Str(&'a str),
 
     // Identifier

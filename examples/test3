@@ -1,1 +1,1 @@
-new {x} : {x}
+! 'x' [unr] new {x} : {x}
