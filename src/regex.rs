@@ -743,7 +743,8 @@ mod tests {
     #[test]
     fn test_re_to_dfa_to_re_1() {
         let e1 = star(seq(char(b'a'), char(b'b')));
-        eprintln!("{}", e1.to_dfa().minimized());
-        assert_eq!(e1, e1.to_dfa().to_regex().simplify());
+        // eprintln!("{}", e1.to_dfa().minimized());
+        // assert_eq!(e1, e1.to_dfa().to_regex().simplify());
+        assert!(e1.is_equal_to(&e1.to_dfa().to_regex()));
     }
 }
