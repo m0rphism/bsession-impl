@@ -4,6 +4,22 @@ use crate::{
     util::span::Spanned,
 };
 
+impl Type {
+    pub fn sem_eq(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Unit, Type::Unit) => true,
+            (Type::Regex(r1), Type::Regex(r2)) => r1.is_equal_to(r2),
+            (Type::Arr(m1, p1, t11, t12), Type::Arr(m2, p2, t21, t22)) => {
+                m1 == m2 && p1 == p2 && t11.sem_eq(t21) && t12.sem_eq(t22)
+            }
+            (Type::Prod(m1, t11, t12), Type::Prod(m2, t21, t22)) => {
+                m1 == m2 && t11.sem_eq(t21) && t12.sem_eq(t22)
+            }
+            (_, _) => false,
+        }
+    }
+}
+
 pub fn lub(p1: Eff, p2: Eff) -> Eff {
     match p1 {
         Eff::Yes => Eff::Yes,
@@ -241,7 +257,7 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx, Ctx), TypeErr
         Expr::Let(_, _, _, _, _) => todo!(),
         _ => {
             let (t2, p, c1, c2) = infer(ctx, e)?;
-            if t.val == t2.val {
+            if t.val.sem_eq(&t2.val) {
                 Ok((p, c1, c2))
             } else {
                 Err(TypeError::Mismatch(t.clone(), t2))
