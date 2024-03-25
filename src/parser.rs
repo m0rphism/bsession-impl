@@ -12,7 +12,7 @@ use Braced::Token as Tok;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 peg::parser! {
-    pub grammar py_parser<'a>() for SpannedToks<'a, Braced<Token<'a>>> {
+    pub grammar rlang_parser<'a>() for SpannedToks<'a, Braced<Token<'a>>> {
         use Token::*;
 
         rule spanned<T>(t: rule<T>) -> Spanned<T>

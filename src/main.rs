@@ -8,6 +8,8 @@ pub mod syntax;
 pub mod typechecker;
 pub mod util;
 
+use std::process::exit;
+
 use clap::Parser;
 
 use crate::{
@@ -23,6 +25,7 @@ fn main() {
     let src_path = args.src_path.to_string_lossy();
     if let Err(e) = run(&args) {
         report_error(&src_path, e);
+        exit(1)
     }
 }
 
@@ -51,7 +54,7 @@ pub fn run(args: &Args) -> Result<(), IErr> {
     println!();
 
     println!("===== AST =====");
-    let e = parser::py_parser::sprogram(&toks).map_err(IErr::Parser)?;
+    let e = parser::rlang_parser::sprogram(&toks).map_err(IErr::Parser)?;
     println!("{e:?}");
     println!();
 
