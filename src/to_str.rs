@@ -22,7 +22,11 @@ impl Pretty<UserState> for Type {
     fn pp(&self, p: &mut PrettyEnv<UserState>) {
         match self {
             Type::Unit => p.pp("Unit"),
-            Type::Regex(r) => p.pp(r),
+            Type::Regex(r) => {
+                p.pp("{");
+                p.pp_prec(0, r);
+                p.pp("}");
+            }
             Type::Arr(m, e, t1, t2) => p.infix(2, R, |p| {
                 p.pp_arg(L, t1);
                 p.pp(" –[");
@@ -76,8 +80,9 @@ impl Pretty<UserState> for Const {
         match self {
             Const::Unit => p.pp("unit"),
             Const::New(r) => {
-                p.pp("new ");
-                p.pp(r);
+                p.pp("new {");
+                p.pp_prec(0, r);
+                p.pp("}")
             }
             Const::Write(w) => {
                 p.pp("!");

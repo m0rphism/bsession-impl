@@ -289,7 +289,20 @@ impl Regex<char> {
             Regex::Char(c) => {
                 let mut buf = [0u8; 4];
                 c.encode_utf8(&mut buf);
-                buf.into_iter().fold(eps, |r, b| seq(r, char_(b)))
+                if buf[0] == 0 {
+                    char_(0)
+                } else if buf[1] == 0 {
+                    char_(buf[0])
+                } else if buf[2] == 0 {
+                    seq(char_(buf[0]), char_(buf[1]))
+                } else if buf[3] == 0 {
+                    seq(char_(buf[0]), seq(char_(buf[1]), char_(buf[2])))
+                } else {
+                    seq(
+                        char_(buf[0]),
+                        seq(char_(buf[1]), seq(char_(buf[2]), char_(buf[3]))),
+                    )
+                }
             }
             Regex::Or(e1, e2) => or(e1.to_u8(), e2.to_u8()),
             Regex::And(e1, e2) => and(e1.to_u8(), e2.to_u8()),

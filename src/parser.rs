@@ -52,7 +52,7 @@ peg::parser! {
 
         pub rule type_atom() -> Type
             = [Tok(UnitT)] { Type::Unit }
-            // TODO: Regex
+            / r:sregex() { Type::Regex(r) }
         pub rule stype_atom() -> SType = spanned(<type_atom()>)
 
         pub rule expr_ann() -> Expr

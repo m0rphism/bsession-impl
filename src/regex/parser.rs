@@ -12,7 +12,7 @@ fn special_char(c: char) -> bool {
 peg::parser! {
     pub grammar regex_parser<'a>() for str {
         pub rule expr_u8() -> Regex<u8>
-            = e:expr() { e.to_u8() }
+            = e:expr() { e.to_u8().simplify() }
 
         pub rule expr() -> Regex<char>
             = e:expr_or() { e }

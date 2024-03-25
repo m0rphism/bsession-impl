@@ -124,7 +124,7 @@ pub fn check_const(c: &Const, t: &SType) -> Result<(), TypeError> {
     match (c, &t.val) {
         (Const::Unit, Type::Unit) => Ok(()),
         (Const::Unit, _) => Err(TypeError::Mismatch(fake_span(Type::Unit), t.clone())),
-        (Const::New(r1), Type::Regex(r2)) if r1 == r2 => Ok(()),
+        (Const::New(r1), Type::Regex(r2)) if r1.is_equal_to(r2) => Ok(()),
         (Const::New(r), _) => Err(TypeError::Mismatch(
             fake_span(Type::Regex(r.clone())),
             t.clone(),
