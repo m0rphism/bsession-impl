@@ -152,45 +152,6 @@ pub fn fake_span<T>(t: T) -> Spanned<T> {
     Spanned::new(t, 0..0)
 }
 
-// // TODO: we can make them inferable, by using actual expressions instead of consts.
-// pub fn check_const(c: &Const, t: &SType) -> Result<(), TypeError> {
-//     match (c, &t.val) {
-//         (Const::Unit, Type::Unit) => Ok(()),
-//         (Const::Unit, _) => Err(TypeError::Mismatch(fake_span(Type::Unit), t.clone())),
-//         (Const::New(r1), Type::Regex(r2)) if r1.is_equal_to(r2) => Ok(()),
-//         (Const::New(r), _) => Err(TypeError::Mismatch(
-//             fake_span(Type::Regex(r.clone())),
-//             t.clone(),
-//         )),
-//         (Const::Write(w), Type::Unit) => todo!(),
-//         (Const::Write(_), Type::Regex(_)) => todo!(),
-//         (Const::Write(_), Type::Arr(_, _, _, _)) => todo!(),
-//         (Const::Write(_), Type::Prod(_, _, _)) => todo!(),
-//         (Const::Split(_), Type::Unit) => todo!(),
-//         (Const::Split(_), Type::Regex(_)) => todo!(),
-//         (Const::Split(_), Type::Arr(_, _, _, _)) => todo!(),
-//         (Const::Split(_), Type::Prod(_, _, _)) => todo!(),
-//         (Const::Close, Type::Unit) => todo!(),
-//         (Const::Close, Type::Regex(_)) => todo!(),
-//         (Const::Close, Type::Arr(_, _, _, _)) => todo!(),
-//         (Const::Close, Type::Prod(_, _, _)) => todo!(),
-//     }
-//     // Const::Unit => Ok(fake_span(Type::Unit)),
-//     // Const::New(r) if t.val == Type::Regex(r2) && r2 == r => Type::Regex(r.clone()),
-//     // Const::New(r) => Type::Regex(r.clone()),
-//     // Const::Write(w) => {
-//     //     let r = ();
-//     //     Type::Arr(
-//     //         fake_span(Mult::Unr),
-//     //         fake_span(Eff::Yes),
-//     //         Box::new(fake_span(Type::Regex(fake_span(r)))),
-//     //         Box::new(fake_span(Type::Regex(fake_span(r)))),
-//     //     )
-//     // }
-//     // Const::Split(r) => todo!(),
-//     // Const::Close => todo!(),
-// }
-
 impl Mult {
     pub fn to_join_ord(&self) -> JoinOrd {
         match self {
@@ -218,10 +179,6 @@ pub fn leq(e1: Eff, e2: Eff) -> bool {
 
 pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx, Ctx), TypeError> {
     match &e.val {
-        // Expr::Const(c) => {
-        //     let t = check_const(c, t)?;
-        //     Ok((Eff::No, Ctx::Empty, ctx.clone()))
-        // }
         Expr::Loc(l) => Err(TypeError::LocationExpr(l.clone())),
         Expr::Abs(m, x, e_body) => match &t.val {
             Type::Arr(m2, _p, _t1, _t2) if m.val != m2.val => {
@@ -277,7 +234,6 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx, Ctx), TypeErr
             }
         }
     }
-    // Ok((Eff::No, Ctx::Empty, Ctx::Empty))
 }
 
 pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> {
@@ -408,7 +364,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> 
 }
 
 pub fn infer_type(e: &SExpr) -> Result<(SType, Eff), TypeError> {
-    let (t, e, c1, c2) = infer(&Ctx::Empty, e)?;
+    let (t, e, _c1, c2) = infer(&Ctx::Empty, e)?;
     if c2.is_unr() {
         Ok((t, e))
     } else {
