@@ -1,4 +1,5 @@
 use crate::{
+    regex::Regex,
     span::Spanned,
     syntax::{Const, Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SType, Type},
 };
@@ -124,8 +125,8 @@ pub fn check_const(c: &Const, t: &SType) -> Result<(), TypeError> {
         (Const::Unit, Type::Unit) => Ok(()),
         (Const::Unit, _) => Err(TypeError::Mismatch(fake_span(Type::Unit), t.clone())),
         (Const::New(r1), Type::Regex(r2)) if r1 == r2 => Ok(()),
-        (Const::New(_), _) => Err(TypeError::Mismatch(
-            fake_span(Type::Regex(fake_span(()))),
+        (Const::New(r), _) => Err(TypeError::Mismatch(
+            fake_span(Type::Regex(r.clone())),
             t.clone(),
         )),
         (Const::Write(w), Type::Unit) => todo!(),

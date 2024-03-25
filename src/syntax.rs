@@ -1,4 +1,4 @@
-use crate::span::Spanned;
+use crate::{regex, span::Spanned};
 
 pub type Id = String;
 pub type SId = Spanned<Id>;
@@ -53,10 +53,10 @@ pub enum Type {
 }
 pub type SType = Spanned<Type>;
 
-pub type Regex = ();
+pub type Regex = regex::Regex<u8>;
 pub type SRegex = Spanned<Regex>;
 
-pub type Word = ();
+pub type Word = String;
 pub type SWord = Spanned<Word>;
 
 #[derive(Debug, Clone, PartialEq)]

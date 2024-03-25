@@ -1,13 +1,14 @@
 use crate::lexer::Token;
 use crate::lexer_offside::Braced;
 use crate::peg_logos::SpannedToks;
+use crate::regex::parser::regex_parser;
+use crate::regex::Regex as RegexS;
 use crate::span::{Span, Spanned};
 use crate::syntax::Eff as EffS;
 use crate::syntax::Id as IdS;
 use crate::syntax::*;
 
 use Braced::Token as Tok;
-use Braced::{Begin, End, Item};
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 peg::parser! {
@@ -87,10 +88,11 @@ peg::parser! {
             / [Tok(Close)] { Const::Close }
         pub rule sconstant() -> SConst = spanned(<constant()>)
 
-        pub rule regex() -> Regex = [Tok(Unit)] { () }
+        pub rule regex() -> RegexS<u8>
+            = [Tok(Regex(s))] {? regex_parser::expr_u8(s).map_err(|e| "Failed parsing regex") }
         pub rule sregex() -> SRegex = spanned(<regex()>)
 
-        pub rule word() -> Word = [Tok(Unit)] { () }
+        pub rule word() -> Word = [Tok(Str(s))] { s.to_string() }
         pub rule sword() -> SWord = spanned(<word()>)
 
         pub rule program() -> Expr = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }

@@ -57,17 +57,17 @@ impl Pretty<UserState> for Eff {
     }
 }
 
-impl Pretty<UserState> for Regex {
-    fn pp(&self, p: &mut PrettyEnv<UserState>) {
-        p.pp("<");
-        p.pp(self);
-        p.pp(">");
-    }
-}
+// impl Pretty<UserState> for Regex {
+//     fn pp(&self, p: &mut PrettyEnv<UserState>) {
+//         p.pp("<");
+//         p.pp(self);
+//         p.pp(">");
+//     }
+// }
 
 // impl Pretty<UserState> for Word {
 //     fn pp(&self, p: &mut PrettyEnv<UserState>) {
-//         todo!()
+//         p
 //     }
 // }
 

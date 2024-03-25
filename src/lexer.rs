@@ -126,6 +126,13 @@ pub enum Token<'a> {
     Period,
     #[regex(r"\\|λ")]
     Lambda,
+    #[token("|")]
+    Pipe,
+    #[token("&")]
+    Amp,
+
+    #[regex(r"\{(\\\}|[^}])*\}", |lex| &lex.slice()[1..lex.slice().len()-1])]
+    Regex(&'a str),
 
     // Positive Int
     #[regex(r"[0-9]+", |lex| lex.slice().parse().map_err(|_| LexingError::Int))]

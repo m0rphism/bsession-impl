@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::os::unix::ffi::OsStrExt;
 
 // Syntax
 
@@ -18,7 +19,8 @@ pub enum Regex<C> {
 
 // Smart constructors
 
-pub use Regex::Char as char;
+use ariadne::Fmt;
+pub use Regex::Char as char_;
 pub use Regex::Empty as empty;
 pub use Regex::Eps as eps;
 
@@ -96,7 +98,7 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
         match self {
             Regex::Empty => empty,
             Regex::Eps => eps,
-            Regex::Char(c) => char(*c),
+            Regex::Char(c) => char_(*c),
             Regex::Or(e1, e2) => match (e1.simplify(), e2.simplify()) {
                 (Regex::Empty, e2) => e2,
                 (e1, Regex::Empty) => e1,
@@ -142,7 +144,7 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
         let res = match self {
             Regex::Empty => empty,
             Regex::Eps => eps,
-            Regex::Char(c) => seq(char(*c), eps),
+            Regex::Char(c) => seq(char_(*c), eps),
             Regex::Or(e1, e2) => match (e1.canonical(), e2.canonical()) {
                 (Regex::Empty, e2) => e2,
                 (e1, Regex::Empty) => e1,
@@ -276,5 +278,24 @@ mod derive_re {
             e = and(e, gamma(r, s))
         }
         e
+    }
+}
+
+impl Regex<char> {
+    pub fn to_u8(&self) -> Regex<u8> {
+        match self {
+            Regex::Empty => empty,
+            Regex::Eps => eps,
+            Regex::Char(c) => {
+                let mut buf = [0u8; 4];
+                c.encode_utf8(&mut buf);
+                buf.into_iter().fold(eps, |r, b| seq(r, char_(b)))
+            }
+            Regex::Or(e1, e2) => or(e1.to_u8(), e2.to_u8()),
+            Regex::And(e1, e2) => and(e1.to_u8(), e2.to_u8()),
+            Regex::Seq(e1, e2) => seq(e1.to_u8(), e2.to_u8()),
+            Regex::Star(e) => star(e.to_u8()),
+            Regex::Neg(e) => neg(e.to_u8()),
+        }
     }
 }

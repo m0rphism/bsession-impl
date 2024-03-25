@@ -69,7 +69,7 @@ impl<C: Copy + Debug + Eq + Hash + Display> DFA<C> {
                 tgts_out.insert(final_, eps);
             }
             for (c, tgt) in tgts {
-                tgts_out.insert(*tgt, char(*c));
+                tgts_out.insert(*tgt, char_(*c));
             }
             states.insert(*s, tgts_out);
         }
@@ -96,7 +96,7 @@ impl<C: Copy + Debug + Eq + Hash + Display> Pattern<C> {
     pub fn to_regex(&self) -> Regex<C> {
         let mut r = empty;
         for c in &self.chars {
-            r = or(r, char(*c));
+            r = or(r, char_(*c));
         }
         if !self.positive {
             r = neg(r);
