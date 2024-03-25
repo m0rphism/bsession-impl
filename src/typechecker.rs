@@ -45,6 +45,7 @@ pub enum TypeError {
     LocationExpr(SLoc),
     UndefinedVariable(SId),
     LeftOver(Ctx),
+    OrdReturn(SType),
     Mismatch(SType, SType),
     MismatchMult(SMult, SMult),
     MismatchEff(SEff, SEff),
@@ -365,9 +366,11 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> 
 
 pub fn infer_type(e: &SExpr) -> Result<(SType, Eff), TypeError> {
     let (t, e, _c1, c2) = infer(&Ctx::Empty, e)?;
-    if c2.is_unr() {
-        Ok((t, e))
-    } else {
+    if !is_unr(&t) {
+        Err(TypeError::OrdReturn(t))
+    } else if !c2.is_unr() {
         Err(TypeError::LeftOver(c2))
+    } else {
+        Ok((t, e))
     }
 }
