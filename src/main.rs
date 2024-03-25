@@ -5,6 +5,7 @@ pub mod parser;
 pub mod pretty;
 pub mod regex;
 pub mod syntax;
+pub mod tests;
 pub mod typechecker;
 pub mod util;
 
@@ -16,6 +17,7 @@ use crate::{
     args::Args,
     error_reporting::{report_error, IErr},
     lexer::Token,
+    syntax::{Eff, Type},
     util::lexer_offside::{self, Braced},
     util::pretty::{pretty, PrettyOpts},
 };
@@ -33,7 +35,11 @@ pub fn run(args: &Args) -> Result<(), IErr> {
     println!("===== SRC =====");
     let src = std::fs::read_to_string(&args.src_path).unwrap();
     println!("{src}\n");
+    let _ = typecheck(&src);
+    Ok(())
+}
 
+pub fn typecheck(src: &str) -> Result<(Type, Eff), IErr> {
     // println!("===== TOKS =====");
     let toks = lexer::lex(&src).map_err(IErr::Lexer)?;
     // for (i, t) in toks.toks.iter().enumerate() {
@@ -68,8 +74,8 @@ pub fn run(args: &Args) -> Result<(), IErr> {
 
     println!("===== TYPECHECKER =====");
     let (t, e) = typechecker::infer_type(&e).map_err(IErr::Typing)?;
-    println!("Type: {}", pretty(&p_opts, t));
-    println!("Effect: {}", pretty(&p_opts, e));
+    println!("Type: {}", pretty(&p_opts, &t));
+    println!("Effect: {}", pretty(&p_opts, &e));
 
-    Ok(())
+    Ok((t.val, e))
 }
