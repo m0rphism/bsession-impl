@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::os::unix::ffi::OsStrExt;
@@ -57,7 +57,7 @@ impl<C: Display> Display for Regex<C> {
     }
 }
 
-impl<C: Copy + Debug + Eq + Hash> Regex<C> {
+impl<C: Copy + Debug + Eq + Hash + Ord> Regex<C> {
     pub fn nullable(&self) -> bool {
         match self {
             Regex::Empty => false,
@@ -117,7 +117,7 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
             Regex::Or(e1, e2) => match (e1.simplify(), e2.simplify()) {
                 (Regex::Empty, e2) => e2,
                 (e1, Regex::Empty) => e1,
-                (e1, e2) => or(e1, e2),
+                (e1, e2) => canonical_or(&e1, &e2),
             },
             Regex::And(e1, e2) => match (e1.simplify(), e2.simplify()) {
                 (Regex::Neg(e1), e2) if *e1 == empty => e2,
@@ -149,10 +149,34 @@ impl<C: Copy + Debug + Eq + Hash> Regex<C> {
     }
 }
 
+pub fn canonical_or<C: Copy + Debug + Eq + Hash + Ord>(e1: &Regex<C>, e2: &Regex<C>) -> Regex<C> {
+    let mut args = vec![];
+    let mut queue = VecDeque::new();
+    queue.push_back(e1);
+    queue.push_back(e2);
+    while let Some(e) = queue.pop_front() {
+        match e {
+            Regex::Or(e1, e2) => {
+                queue.push_back(e1);
+                queue.push_back(e2);
+            }
+            _ => args.push(e),
+        }
+    }
+    args.sort();
+    args.dedup();
+    let mut it = args.into_iter().rev().cloned();
+    let mut e = it.next().unwrap();
+    for e2 in it {
+        e = or(e2, e);
+    }
+    e
+}
+
 // Product Derivatives as in the paper
 // 'Manipulation of Extended Regular Expressions with Derivatives'
 
-impl<C: Copy + Debug + Eq + Hash> Regex<C> {
+impl<C: Copy + Debug + Eq + Hash + Ord> Regex<C> {
     pub fn canonical(&self) -> Regex<C> {
         // eprintln!("–––––––––––––––––––––––");
         // eprintln!("> {self:?}");
@@ -235,7 +259,7 @@ mod derive_re {
     use super::*;
     use std::{collections::HashSet, hash::Hash};
 
-    pub fn gfp<C: Copy + Debug + Eq + Hash>(
+    pub fn gfp<C: Copy + Debug + Eq + Hash + Ord>(
         mut x: HashSet<(Regex<C>, Regex<C>)>,
         r: &Regex<C>,
         s: &Regex<C>,

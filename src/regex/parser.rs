@@ -1,3 +1,5 @@
+use peg::{error::ParseError, str::LineCol};
+
 use super::regex::Regex;
 
 fn special_char(c: char) -> bool {
@@ -44,5 +46,16 @@ peg::parser! {
         pub rule letter() -> char 
             = c:[c if !special_char(c)] { c }
             / ['\\'] [c if special_char(c)] { c }
+    }
+}
+
+impl Regex<u8> {
+    pub fn from_str(s: &str) -> Result<Self, ParseError<LineCol>> {
+        regex_parser::expr(s).map(|e| e.to_u8())
+    }
+}
+impl Regex<char> {
+    pub fn from_str(s: &str) -> Result<Self, ParseError<LineCol>> {
+        regex_parser::expr(s)
     }
 }

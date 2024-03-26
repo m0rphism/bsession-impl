@@ -134,6 +134,14 @@ pub fn pretty<S: Default>(opts: &PrettyOpts, p: impl Pretty<S>) -> String {
     pretty_st(opts, &mut S::default(), p)
 }
 
+pub fn pretty_def<S: Default>(p: impl Pretty<S>) -> String {
+    let p_opts = PrettyOpts {
+        indent_by: 2,
+        max_line_len: 80,
+    };
+    pretty(&p_opts, p)
+}
+
 pub fn pretty_st<S>(opts: &PrettyOpts, state: &mut S, p: impl Pretty<S>) -> String {
     pretty_env(&mut PrettyEnv::new(opts, state), p)
 }

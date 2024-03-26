@@ -7,7 +7,7 @@ use super::pattern;
 use super::pattern::{Example, Pattern, Realizable};
 use super::regex::Regex;
 
-impl<C: Copy + Debug + Eq + Hash + Display + Example + Realizable> Regex<C> {
+impl<C: Copy + Debug + Eq + Hash + Ord + Display + Example + Realizable> Regex<C> {
     pub fn to_dfa(&self) -> DFA<C> {
         let init = 0;
         let mut finals = HashSet::new();

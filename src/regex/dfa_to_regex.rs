@@ -6,6 +6,7 @@ use crate::regex::dfa::DFA;
 use crate::regex::pattern::Pattern;
 use crate::regex::regex::*;
 
+#[derive(Clone, Debug)]
 pub struct GNFA<C> {
     pub init: usize,
     pub final_: usize,
@@ -69,7 +70,10 @@ impl<C: Copy + Debug + Eq + Hash + Display> DFA<C> {
                 tgts_out.insert(final_, eps);
             }
             for (c, tgt) in tgts {
-                tgts_out.insert(*tgt, char_(*c));
+                tgts_out
+                    .entry(*tgt)
+                    .and_modify(|v| *v = or(v.clone(), char_(*c)))
+                    .or_insert(char_(*c));
             }
             states.insert(*s, tgts_out);
         }
