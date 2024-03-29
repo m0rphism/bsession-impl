@@ -68,6 +68,10 @@ pub mod CtxCtxS {
     }
 }
 
+use CtxCtxS::*;
+use CtxS::*;
+use JoinOrd::*;
+
 impl Ctx {
     pub fn vars(&self) -> HashSet<Id> {
         let mut res = HashSet::new();
@@ -83,7 +87,13 @@ impl Ctx {
         });
         res
     }
-
+    pub fn to_sem(&self) -> SemCtx {
+        match self {
+            Ctx::Empty => SemCtx::empty(),
+            Ctx::Bind(x, t) => SemCtx::bind(x.val.clone(), t.val.clone()),
+            Ctx::Join(c1, c2, o) => c1.to_sem().join(&c2.to_sem(), *o),
+        }
+    }
     pub fn is_splittable(&self, xs: &HashSet<Id>) -> bool {
         let sem = self.to_sem();
         let (binds_xs, binds_not_xs) = self
@@ -104,11 +114,63 @@ impl Ctx {
         }
         true
     }
-    pub fn to_sem(&self) -> SemCtx {
+    pub fn split(&self, xs: &HashSet<Id>) -> Option<Option<(CtxCtx, Ctx)>> {
         match self {
-            Ctx::Empty => SemCtx::empty(),
-            Ctx::Bind(x, t) => SemCtx::bind(x.val.clone(), t.val.clone()),
-            Ctx::Join(c1, c2, o) => c1.to_sem().join(&c2.to_sem(), *o),
+            Ctx::Empty => Some(None), // no splitting necessary
+            Ctx::Bind(x, t) if xs.contains(&x.val) => {
+                Some(Some((CtxCtxS::Hole, Ctx::Bind(x.clone(), t.clone()))))
+            }
+            Ctx::Bind(_, _) => Some(None), // no splitting necessary
+            Ctx::Join(c1, c2, Ordered) => match (c1.split(xs)?, c2.split(xs)?) {
+                (None, None) => Some(None),
+                (None, Some((cc, c))) => Some(Some((JoinR(c1, cc, Ordered), c))),
+                (Some((cc, c)), None) => Some(Some((JoinL(cc, c2, Ordered), c))),
+                (Some((cc1, c1)), Some((cc2, c2))) => {
+                    if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_left()) {
+                        Some(Some((
+                            JoinR(c1x, JoinL(Hole, c2x, Ordered), Ordered),
+                            Join(c1, c2, Ordered),
+                        )))
+                    } else {
+                        None
+                    }
+                }
+            },
+            Ctx::Join(c1, c2, Unordered) => match (c1.split(xs)?, c2.split(xs)?) {
+                (None, None) => Some(None),
+                (None, Some((cc, c))) => Some(Some((JoinR(c1, cc, Unordered), c))),
+                (Some((cc, c)), None) => Some(Some((JoinL(cc, c2, Unordered), c))),
+                (Some((cc1, c1)), Some((cc2, c2))) => {
+                    if let (Some(c1x), Some(c2x)) = (cc1.pull_par(), cc2.pull_par()) {
+                        Some(Some((
+                            JoinR(c1x, JoinL(CtxCtxS::Hole, c2x, Unordered), Unordered),
+                            Join(c1, c2, Unordered),
+                        )))
+                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_right()) {
+                        Some(Some((
+                            JoinR(Join(c1x, c2x, Unordered), CtxCtxS::Hole, Ordered),
+                            Join(c1, c2, Unordered),
+                        )))
+                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_left(), cc2.pull_left()) {
+                        Some(Some((
+                            JoinL(CtxCtxS::Hole, Join(c1x, c2x, Unordered), Ordered),
+                            Join(c1, c2, Unordered),
+                        )))
+                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_left(), cc2.pull_right()) {
+                        Some(Some((
+                            JoinR(c2x, JoinL(CtxCtxS::Hole, c1x, Ordered), Ordered),
+                            Join(c1, c2, Ordered),
+                        )))
+                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_left()) {
+                        Some(Some((
+                            JoinR(c1x, JoinL(CtxCtxS::Hole, c2x, Ordered), Ordered),
+                            Join(c1, c2, Ordered),
+                        )))
+                    } else {
+                        None
+                    }
+                }
+            },
         }
     }
 }
@@ -249,14 +311,69 @@ impl CtxCtx {
         }
     }
 
-    pub fn pull_left(&self) -> Option<(Ctx, JoinOrd)> {
+    fn pull_left_(&self) -> Option<Ctx> {
         match self {
-            CtxCtx::Hole => Some((Ctx::Empty, JoinOrd::Unordered)),
+            CtxCtx::Hole => Some(Ctx::Empty),
             CtxCtx::JoinL(cc, c, o) => {
-                let (c2, o2) = self.pull_left()?;
-                Some((CtxS::Join(c2, c, *o), o2))
+                let c2 = cc.pull_left()?;
+                Some(CtxS::Join(c2, c, *o))
             }
-            CtxCtx::JoinR(c, cc, o) => todo!(),
+            CtxCtx::JoinR(c, cc, o) => {
+                let c2 = cc.pull_left()?;
+                Some(CtxS::Join(c2, c, *o))
+            }
+        }
+    }
+
+    pub fn pull_left(&self) -> Option<Ctx> {
+        if self.is_left() {
+            self.pull_left_()
+        } else {
+            None
+        }
+    }
+
+    fn pull_right_(&self) -> Option<Ctx> {
+        match self {
+            CtxCtx::Hole => Some(Ctx::Empty),
+            CtxCtx::JoinL(cc, c, o) => {
+                let c2 = cc.pull_right()?;
+                Some(CtxS::Join(c, c2, *o))
+            }
+            CtxCtx::JoinR(c, cc, o) => {
+                let c2 = cc.pull_right()?;
+                Some(CtxS::Join(c, c2, *o))
+            }
+        }
+    }
+
+    pub fn pull_right(&self) -> Option<Ctx> {
+        if self.is_right() {
+            self.pull_right_()
+        } else {
+            None
+        }
+    }
+
+    fn pull_par_(&self) -> Option<Ctx> {
+        match self {
+            CtxCtx::Hole => Some(Ctx::Empty),
+            CtxCtx::JoinL(cc, c, _o) => {
+                let c2 = cc.pull_par()?;
+                Some(CtxS::Join(c, c2, JoinOrd::Unordered))
+            }
+            CtxCtx::JoinR(c, cc, _o) => {
+                let c2 = cc.pull_par()?;
+                Some(CtxS::Join(c, c2, JoinOrd::Unordered))
+            }
+        }
+    }
+
+    pub fn pull_par(&self) -> Option<Ctx> {
+        if self.is_left() && self.is_right() {
+            self.pull_par_()
+        } else {
+            None
         }
     }
 }
