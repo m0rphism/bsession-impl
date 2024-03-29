@@ -76,13 +76,33 @@ impl Ctx {
         });
         res
     }
+    pub fn binds(&self) -> HashMap<Id, Type> {
+        let mut res = HashMap::new();
+        self.map_binds(&mut |x, t| {
+            res.insert(x.clone(), t.clone());
+        });
+        res
+    }
 
     pub fn is_splittable(&self, xs: &HashSet<Id>) -> bool {
-        match self {
-            Ctx::Empty => true,
-            Ctx::Bind(_x, _t) => true,
-            Ctx::Join(c1, c2, o) => c1.is_splittable(xs) && c2.is_splittable(xs),
+        let sem = self.to_sem();
+        let (binds_xs, binds_not_xs) = self
+            .binds()
+            .into_iter()
+            .filter(|(_, t)| is_unr(t))
+            .partition::<HashSet<_>, _>(|(x, _)| xs.contains(x));
+        for b1 in &binds_xs {
+            for b2 in &binds_not_xs {
+                if sem.ord.is_reachable(b1, b2) {
+                    for b3 in &binds_xs {
+                        if sem.ord.is_reachable(b2, b3) {
+                            return false;
+                        }
+                    }
+                }
+            }
         }
+        true
     }
     pub fn to_sem(&self) -> SemCtx {
         match self {
