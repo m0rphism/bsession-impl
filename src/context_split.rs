@@ -3,6 +3,7 @@ use std::hash::Hash;
 
 use crate::syntax::{SId, SType, Type};
 use crate::typechecker::is_unr;
+use crate::util::pretty::{Pretty, PrettyEnv};
 use crate::{
     syntax::Id,
     typechecker::{Ctx, CtxCtx, JoinOrd},
@@ -99,7 +100,7 @@ impl Ctx {
         let (binds_xs, binds_not_xs) = self
             .binds()
             .into_iter()
-            .filter(|(_, t)| is_unr(t))
+            .filter(|(_, t)| !is_unr(t))
             .partition::<HashSet<_>, _>(|(x, _)| xs.contains(x));
         for b1 in &binds_xs {
             for b2 in &binds_not_xs {
@@ -375,5 +376,106 @@ impl CtxCtx {
         } else {
             None
         }
+    }
+}
+
+impl Pretty<()> for Ctx {
+    fn pp(&self, p: &mut PrettyEnv<()>) {
+        match self {
+            Ctx::Empty => p.pp("·"),
+            Ctx::Bind(x, t) => {
+                p.pp(x);
+                // p.pp(" : ");
+                // p.pp(t);
+            }
+            Ctx::Join(c1, c2, o) => {
+                p.pp("(");
+                p.pp(c1);
+                match o {
+                    Ordered => p.pp(" , "),
+                    Unordered => p.pp(" ∥ "),
+                }
+                p.pp(c2);
+                p.pp(")")
+            }
+        }
+    }
+}
+
+impl Pretty<()> for CtxCtx {
+    fn pp(&self, p: &mut PrettyEnv<()>) {
+        match self {
+            CtxCtx::Hole => p.pp("■"),
+            CtxCtx::JoinL(c1, c2, o) => {
+                p.pp("(");
+                p.pp(c1);
+                match o {
+                    Ordered => p.pp(" , "),
+                    Unordered => p.pp(" ∥ "),
+                }
+                p.pp(c2);
+                p.pp(")")
+            }
+            CtxCtx::JoinR(c1, c2, o) => {
+                p.pp("(");
+                p.pp(c1);
+                match o {
+                    Ordered => p.pp(" , "),
+                    Unordered => p.pp(" ∥ "),
+                }
+                p.pp(c2);
+                p.pp(")")
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{typechecker::fake_span, util::pretty::pretty_def};
+
+    use super::*;
+
+    fn bind(x: &str) -> Ctx {
+        Bind(fake_span(x.to_string()), fake_span(Type::Unit))
+    }
+
+    pub fn u(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>) -> Ctx {
+        Join(c1, c2, Unordered)
+    }
+    pub fn o(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>) -> Ctx {
+        Join(c1, c2, Ordered)
+    }
+
+    fn test_split(c: Ctx, xs: impl IntoIterator<Item = &'static str>) {
+        let xs: HashSet<Id> = xs.into_iter().map(|x| x.to_string()).collect();
+        eprintln!("\n––––––––––––––––––––––––––––––––––––––––––––––––––");
+        eprintln!("Ctx:          {}", pretty_def(&c));
+        eprintln!("Splittable:   {}", c.is_splittable(&xs));
+        match c.split(&xs) {
+            Some(Some((cc, c2))) => {
+                eprintln!("Split CtxCtx: {}", pretty_def(&cc));
+                eprintln!("Split Ctx:    {}", pretty_def(&c2));
+            }
+            Some(None) => {
+                let ys = c
+                    .binds()
+                    .into_iter()
+                    .filter(|(_, t)| is_unr(t))
+                    .map(|(x, _)| x)
+                    .collect::<HashSet<_>>();
+                if ys.is_disjoint(&xs) {
+                    eprintln!("No splitting necessary")
+                } else {
+                    assert!(false, "No splitting done, but variables are not disjoint");
+                }
+            }
+            None => assert!(false, "Failed splitting"),
+        }
+    }
+
+    #[test]
+    fn split_1() {
+        test_split(o(bind("x"), bind("y")), ["x"]);
     }
 }
