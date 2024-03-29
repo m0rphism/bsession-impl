@@ -4,40 +4,13 @@ use std::hash::Hash;
 use crate::regex::Regex;
 use crate::syntax::{SId, SType, Type};
 use crate::typechecker::{fake_span, is_unr};
+use crate::util::boxed::Boxed;
 use crate::util::graph::Graph;
 use crate::util::pretty::{Pretty, PrettyEnv};
 use crate::{
     syntax::Id,
     typechecker::{Ctx, CtxCtx, JoinOrd},
 };
-
-pub trait Boxed<T> {
-    fn boxed(self) -> Box<T>;
-}
-
-impl<T> Boxed<T> for T {
-    fn boxed(self) -> Box<T> {
-        Box::new(self)
-    }
-}
-
-impl<'a, T: Clone> Boxed<T> for &'a T {
-    fn boxed(self) -> Box<T> {
-        Box::new(self.clone())
-    }
-}
-
-impl<T> Boxed<T> for Box<T> {
-    fn boxed(self) -> Box<T> {
-        self
-    }
-}
-
-impl<'a, T: Clone> Boxed<T> for &'a Box<T> {
-    fn boxed(self) -> Box<T> {
-        self.clone()
-    }
-}
 
 #[allow(non_snake_case)]
 pub mod CtxS {

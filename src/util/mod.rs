@@ -1,3 +1,4 @@
+pub mod boxed;
 pub mod graph;
 pub mod lexer_offside;
 pub mod peg_logos;
