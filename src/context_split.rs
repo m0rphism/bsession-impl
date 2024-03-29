@@ -116,8 +116,6 @@ impl Ctx {
         }
         true
     }
-    // FIXME: (a , b , c) with all types unrestricted can be split for
-    // {a, b}, but currently produces bad output.
     pub fn split(&self, xs: &HashSet<Id>) -> Option<Option<(CtxCtx, Ctx)>> {
         match self {
             Ctx::Empty => Some(None), // no splitting necessary
