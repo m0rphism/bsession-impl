@@ -174,6 +174,17 @@ impl Ctx {
             },
         }
     }
+    pub fn simplify(&self) -> Self {
+        match self {
+            Ctx::Empty => Ctx::Empty,
+            Ctx::Bind(x, t) => Ctx::Bind(x.clone(), t.clone()),
+            Ctx::Join(c1, c2, o) => match (c1.simplify(), c2.simplify()) {
+                (c1, Ctx::Empty) => c1,
+                (Ctx::Empty, c2) => c2,
+                (c1, c2) => CtxS::Join(c1, c2, *o),
+            },
+        }
+    }
 }
 
 pub struct SemCtx {
@@ -377,6 +388,20 @@ impl CtxCtx {
             None
         }
     }
+
+    pub fn simplify(&self) -> Self {
+        match self {
+            CtxCtx::Hole => CtxCtx::Hole,
+            CtxCtx::JoinL(c1, c2, o) => match (c1.simplify(), c2.simplify()) {
+                (c1, Ctx::Empty) => c1,
+                (c1, c2) => CtxCtxS::JoinL(c1, c2, *o),
+            },
+            CtxCtx::JoinR(c1, c2, o) => match (c1.simplify(), c2.simplify()) {
+                (Ctx::Empty, c2) => c2,
+                (c1, c2) => CtxCtxS::JoinR(c1, c2, *o),
+            },
+        }
+    }
 }
 
 impl Pretty<()> for Ctx {
@@ -430,6 +455,21 @@ impl Pretty<()> for CtxCtx {
     }
 }
 
+impl<T: Ord + Eq + Hash + Pretty<()>> Pretty<()> for HashSet<T> {
+    fn pp(&self, p: &mut PrettyEnv<()>) {
+        let mut xs: Vec<_> = self.iter().collect();
+        xs.sort();
+        p.pp("{");
+        for (i, x) in xs.into_iter().enumerate() {
+            if i != 0 {
+                p.pp(", ");
+            }
+            p.pp(x);
+        }
+        p.pp("}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{typechecker::fake_span, util::pretty::pretty_def};
@@ -447,13 +487,16 @@ mod tests {
         Join(c1, c2, Ordered)
     }
 
-    fn test_split(c: Ctx, xs: impl IntoIterator<Item = &'static str>) {
+    fn test_split(c: &Ctx, xs: impl IntoIterator<Item = &'static str>) {
         let xs: HashSet<Id> = xs.into_iter().map(|x| x.to_string()).collect();
         eprintln!("\n––––––––––––––––––––––––––––––––––––––––––––––––––");
         eprintln!("Ctx:          {}", pretty_def(&c));
+        eprintln!("Vars:         {}", pretty_def(&xs));
         eprintln!("Splittable:   {}", c.is_splittable(&xs));
         match c.split(&xs) {
             Some(Some((cc, c2))) => {
+                let cc = cc.simplify();
+                let c2 = c2.simplify();
                 eprintln!("Split CtxCtx: {}", pretty_def(&cc));
                 eprintln!("Split Ctx:    {}", pretty_def(&c2));
             }
@@ -476,6 +519,19 @@ mod tests {
 
     #[test]
     fn split_1() {
-        test_split(o(bind("x"), bind("y")), ["x"]);
+        let c = o(bind("a"), bind("b"));
+        test_split(&c, ["a"]);
+        test_split(&c, ["b"]);
+        test_split(&c, ["a", "b"]);
+        test_split(&c, []);
+    }
+
+    #[test]
+    fn split_2() {
+        let c = u(o(bind("a"), bind("b")), o(bind("c"), bind("d")));
+        test_split(&c, ["a"]);
+        test_split(&c, ["b"]);
+        test_split(&c, ["a", "b"]);
+        test_split(&c, []);
     }
 }
