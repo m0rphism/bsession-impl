@@ -56,7 +56,7 @@ pub enum TypeError {
     InvalidSplitRes(SRegex, SRegex),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinOrd {
     Ordered,
     Unordered,

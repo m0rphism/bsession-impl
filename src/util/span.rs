@@ -1,8 +1,9 @@
+use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Range};
 
 pub type Span = Range<usize>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Spanned<T> {
     pub val: T,
     pub span: Span,

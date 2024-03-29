@@ -1,4 +1,5 @@
 use crate::{regex, util::span::Spanned};
+use std::hash::Hash;
 
 pub type Id = String;
 pub type SId = Spanned<Id>;
@@ -28,7 +29,7 @@ pub type SLoc = Spanned<Loc>;
 //     Neg,
 // }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mult {
     Unr,
     Lin,
@@ -37,14 +38,14 @@ pub enum Mult {
 }
 pub type SMult = Spanned<Mult>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Eff {
     Yes,
     No,
 }
 pub type SEff = Spanned<Eff>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     Unit,
     Regex(SRegex),
@@ -59,7 +60,7 @@ pub type SRegex = Spanned<Regex>;
 pub type Word = String;
 pub type SWord = Spanned<Word>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     Unit,
     New(SRegex),
