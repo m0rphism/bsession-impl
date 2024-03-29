@@ -134,10 +134,9 @@ impl SemCtx {
     }
 }
 
-/// INVARIANT: each label corresponds to exactly one node.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Graph<L> {
-    pub edges: HashMap<usize, (L, HashSet<usize>)>,
+pub struct Graph<L: Eq + Hash> {
+    pub edges: HashMap<L, HashSet<L>>,
 }
 
 impl<L: Clone + Eq + Hash> Graph<L> {
@@ -148,72 +147,61 @@ impl<L: Clone + Eq + Hash> Graph<L> {
     }
     pub fn singleton(l: L) -> Self {
         let mut g = Graph::empty();
-        g.edges.insert(0, (l, HashSet::new()));
+        g.edges.insert(l, HashSet::new());
         g
-    }
-    pub fn next_free_node(&self) -> usize {
-        self.edges.keys().max().cloned().unwrap_or(0)
     }
     pub fn union(&self, other: &Graph<L>) -> Self {
         let mut out = self.clone();
-        let offset = self.next_free_node();
-        for (src, (l, tgts)) in &other.edges {
-            let new_src = src + offset;
-            let new_targets = tgts.iter().map(|tgt| *tgt + offset).collect();
-            out.edges.insert(new_src, (l.clone(), new_targets));
+        for (l, tgts) in &other.edges {
+            let e = out.edges.entry(l.clone()).or_insert_with(|| HashSet::new());
+            e.extend(tgts.into_iter().cloned());
         }
         out
     }
     pub fn plus(&self, other: &Graph<L>) -> Self {
         let mut out = self.union(other);
-        let offset = self.next_free_node();
         for src in self.edges.keys() {
             for tgt in other.edges.keys() {
-                let new_tgt = tgt + offset;
-                out.edges.get_mut(&src).unwrap().1.insert(new_tgt);
+                out.edges.get_mut(src).unwrap().insert(tgt.clone());
             }
         }
         out
     }
-    pub fn labels(&self) -> impl Iterator<Item = &L> {
-        self.edges.values().map(|(l, _)| l)
-    }
-    pub fn label_map(&self) -> HashMap<&L, (usize, &HashSet<usize>)> {
-        self.edges
-            .iter()
-            .map(|(src, (l, tgts))| (l, (*src, tgts)))
-            .collect()
-    }
     pub fn is_subgraph_of(&self, other: &Self) -> bool {
-        // let labels1 = self.labels().collect::<HashSet<_>>();
-        // let labels2 = other.labels().collect::<HashSet<_>>();
-        // if labels1 != labels2 {
-        //     return false;
-        // }
-
-        let labels1 = self.label_map();
-        let labels2 = other.label_map();
-
-        let mut queue = VecDeque::new();
-        for (src, (l, tgts)) in &self.edges {
-            if let Some((src2, tgts2)) = labels2.get(l) {
-                queue.push_back((src, src2))
+        for (src, tgts) in &self.edges {
+            if let Some(tgts2) = &other.edges.get(src) {
+                for tgt in tgts {
+                    if !tgts2.contains(tgt) {
+                        return false;
+                    }
+                }
             } else {
                 return false;
             }
         }
-
-        while let Some((src1, src2)) = queue.pop_front() {
-            let (l1, tgts1) = &self.edges[src1];
-            let (l2, tgts2) = &other.edges[src2];
-            for tgt1 in tgts1 {}
+        for src2 in other.edges.keys() {
+            if !self.edges.contains_key(src2) {
+                return false;
+            }
         }
-
         true
     }
-    // pub fn reachable_fn(mut src: impl FnMut(usize) -> bool, mut tgt: impl FnMut(usize) -> bool) -> bool {
-
-    // }
+    pub fn is_reachable(&self, src: &L, tgt: &L) -> bool {
+        let mut visited = HashSet::<&L>::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(src);
+        while let Some(src) = queue.pop_front() {
+            if visited.insert(src) {
+                if src == tgt {
+                    return true;
+                }
+                for tgt in &self.edges[src] {
+                    queue.push_back(tgt);
+                }
+            }
+        }
+        false
+    }
 }
 
 pub enum PullOut {
