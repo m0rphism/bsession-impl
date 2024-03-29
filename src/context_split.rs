@@ -543,10 +543,17 @@ mod tests {
                 assert!(c2_vars.is_subset(&xs), "Split Ctx is not a subset of xs");
 
                 let c_res = cc.fill(c2);
+                eprintln!("Rejoined Ctx: {}", pretty_def(&c_res));
                 assert!(
                     c.to_sem().is_subctx_of(&c_res.to_sem()),
-                    "Split context is not equal to original"
+                    "Split context is not super-context of original"
                 );
+
+                if c.to_sem() == c_res.to_sem() {
+                    eprintln!("Split context is exactly equal to original")
+                } else {
+                    eprintln!("Split context is worse than original")
+                }
             }
             Some(None) => {
                 let ys = c
@@ -596,8 +603,9 @@ mod tests {
             "b".to_string(),
             "c".to_string(),
             "d".to_string(),
-            // "e".to_string(),
+            "e".to_string(),
             // "f".to_string(),
+            // "g".to_string(),
         ];
         let xs_set: HashSet<Id> = xs.iter().cloned().collect();
         let it = CtxEnum::new(xs.clone());
