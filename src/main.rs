@@ -1,12 +1,12 @@
 pub mod args;
-pub mod context_split;
 pub mod error_reporting;
 pub mod lexer;
 pub mod parser;
 pub mod pretty;
 pub mod regex;
 pub mod syntax;
-pub mod typechecker;
+pub mod type_checker;
+pub mod type_context;
 pub mod util;
 
 #[cfg(test)]
@@ -76,7 +76,7 @@ pub fn typecheck(src: &str) -> Result<(Type, Eff), IErr> {
     println!();
 
     println!("===== TYPECHECKER =====");
-    let (t, e) = typechecker::infer_type(&e).map_err(IErr::Typing)?;
+    let (t, e) = type_checker::infer_type(&e).map_err(IErr::Typing)?;
     println!("Type: {}", pretty(&p_opts, &t));
     println!("Effect: {}", pretty(&p_opts, &e));
 

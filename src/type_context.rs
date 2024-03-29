@@ -2,15 +2,102 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
 
 use crate::regex::Regex;
-use crate::syntax::{SId, SType, Type};
-use crate::typechecker::{fake_span, is_unr};
+use crate::syntax::{Id, Mult, SId, SType, Type};
 use crate::util::boxed::Boxed;
 use crate::util::graph::Graph;
 use crate::util::pretty::{Pretty, PrettyEnv};
-use crate::{
-    syntax::Id,
-    typechecker::{Ctx, CtxCtx, JoinOrd},
-};
+use crate::util::span::fake_span;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinOrd {
+    Ordered,
+    Unordered,
+}
+
+#[derive(Debug, Clone)]
+pub enum Ctx {
+    Empty,
+    Bind(SId, SType),
+    Join(Box<Ctx>, Box<Ctx>, JoinOrd),
+}
+
+impl Ctx {
+    pub fn map_binds(&self, f: &mut impl FnMut(&Id, &Type)) {
+        match self {
+            Ctx::Empty => (),
+            Ctx::Bind(x, t) => f(x, t),
+            Ctx::Join(c1, c2, _o) => {
+                c1.map_binds(f);
+                c2.map_binds(f);
+            }
+        }
+    }
+    pub fn is_unr(&self) -> bool {
+        let mut unr = true;
+        self.map_binds(&mut |_x, t| unr = unr && t.is_unr());
+        unr
+    }
+    pub fn lookup_ord_pure(&self, x: &Id) -> Option<(Ctx, SType)> {
+        let mut c = self.clone();
+        c.lookup_ord(x).map(|t| (c, t))
+    }
+    pub fn lookup_ord(&mut self, x: &Id) -> Option<SType> {
+        match self {
+            Ctx::Empty => None,
+            Ctx::Bind(y, t) if x == &y.val => {
+                if t.is_ord() {
+                    let t = t.clone();
+                    *self = Ctx::Empty;
+                    Some(t)
+                } else {
+                    Some(t.clone())
+                }
+            }
+            Ctx::Bind(_y, _t) => None,
+            Ctx::Join(c1, c2, o) => c1.lookup_ord(x).or_else(|| {
+                if c1.is_unr() || *o == JoinOrd::Ordered {
+                    c2.lookup_ord(x)
+                } else {
+                    None
+                }
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum CtxCtx {
+    Hole,
+    JoinL(Box<CtxCtx>, Box<Ctx>, JoinOrd),
+    JoinR(Box<Ctx>, Box<CtxCtx>, JoinOrd),
+}
+
+impl CtxCtx {
+    pub fn fill(&self, c: Ctx) -> Ctx {
+        match self {
+            CtxCtx::Hole => c,
+            CtxCtx::JoinL(cc1, c2, o) => Ctx::Join(Box::new(cc1.fill(c)), c2.clone(), o.clone()),
+            CtxCtx::JoinR(c1, cc2, o) => Ctx::Join(c1.clone(), Box::new(cc2.fill(c)), o.clone()),
+        }
+    }
+}
+
+impl Mult {
+    pub fn to_join_ord(&self) -> JoinOrd {
+        match self {
+            Mult::Unr => JoinOrd::Ordered,
+            Mult::Lin => JoinOrd::Unordered,
+            Mult::OrdL => JoinOrd::Ordered,
+            Mult::OrdR => JoinOrd::Ordered,
+        }
+    }
+    pub fn choose_ctxs<'a>(&self, c1: &'a Ctx, c2: &'a Ctx) -> (&'a Ctx, &'a Ctx) {
+        match self {
+            Mult::OrdR => (c2, c1),
+            _ => (c1, c2),
+        }
+    }
+}
 
 #[allow(non_snake_case)]
 pub mod CtxS {
@@ -75,7 +162,7 @@ impl Ctx {
         let (binds_xs, binds_not_xs) = self
             .binds()
             .into_iter()
-            .filter(|(_, t)| !is_unr(t))
+            .filter(|(_, t)| !t.is_unr())
             .partition::<HashSet<_>, _>(|(x, _)| xs.contains(x));
         for b1 in &binds_xs {
             for b2 in &binds_not_xs {
@@ -185,7 +272,7 @@ impl SemCtx {
     }
     pub fn bind(x: Id, t: Type) -> Self {
         let mut c = Self::empty();
-        if is_unr(&t) {
+        if t.is_unr() {
             c.unr.insert((x, t));
         } else {
             c.ord = Graph::singleton((x, t));
@@ -213,12 +300,6 @@ impl SemCtx {
     pub fn is_subctx_of(&self, other: &Self) -> bool {
         self.ord.is_subgraph_of(&other.ord) && other.unr.is_subset(&self.unr)
     }
-}
-
-pub enum PullOut {
-    HoleLeft(Ctx),
-    HoleRight(Ctx),
-    Par(Ctx),
 }
 
 impl CtxCtx {
@@ -401,9 +482,93 @@ impl<T: Ord + Eq + Hash + Pretty<()>> Pretty<()> for HashSet<T> {
     }
 }
 
+pub struct CtxEnum {
+    pub vars: Vec<Id>,
+    pub catalanian: Vec<usize>,
+    pub cur: usize,
+}
+
+pub fn catalanians_up_to(n: usize) -> Vec<usize> {
+    let mut catalanian = vec![0, 1];
+    for i in 2..=n {
+        let mut c = 0;
+        for j in 1..i {
+            c += catalanian[j] * catalanian[i - j] * 2;
+        }
+        catalanian.push(c)
+    }
+
+    catalanian
+}
+
+pub fn gen_ctx(cats: &[usize], vars: &[Id], i: usize) -> Option<Ctx> {
+    // eprintln!("gen_ctx({cats:?}, {}, {})", vars.len(), i);
+    let mut cur = 0;
+    let mut prev = 0;
+    let n = vars.len();
+    if vars.len() == 0 {
+        return None;
+    } else if vars.len() == 1 {
+        // return Some(Ctx::Bind(fake_span(vars[0].clone()), fake_span(Type::Unit)));
+        return Some(Ctx::Bind(
+            fake_span(vars[0].clone()),
+            fake_span(Type::Regex(fake_span(Regex::Char(0)))),
+        ));
+    }
+    for x in 1..n {
+        cur += cats[x] * cats[n - x] * 2;
+        // eprintln!(
+        //     "cur = cats[{x}] * cats[{}] = {} * {} = {}",
+        //     n - x,
+        //     cats[x],
+        //     cats[n - x],
+        //     cur
+        // );
+        // eprintln!("Loop {x}, cur {cur}, prev {prev}");
+        if i < cur {
+            let ord = (i - prev) / (cats[x] * cats[n - x]);
+            let i = (i - prev) % (cats[x] * cats[n - x]);
+            let j = i % cats[x];
+            let k = i / cats[x];
+            return Some(Join(
+                gen_ctx(cats, &vars[0..x], j)?,
+                gen_ctx(cats, &vars[x..n], k)?,
+                if ord == 0 { Ordered } else { Unordered },
+            ));
+        }
+        prev = cur;
+    }
+    // eprintln!("NOT CAUGHT BY LOOP");
+    None
+}
+
+impl CtxEnum {
+    pub fn new(vars: Vec<Id>) -> Self {
+        Self {
+            catalanian: catalanians_up_to(vars.len()),
+            vars,
+            cur: 0,
+        }
+    }
+}
+
+impl Iterator for CtxEnum {
+    type Item = Ctx;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur < self.catalanian[self.vars.len()] {
+            self.cur += 1;
+            // eprintln!("\nGenerating {}", self.cur - 1);
+            Some(gen_ctx(&self.catalanian, &self.vars, self.cur - 1).unwrap())
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{typechecker::fake_span, util::pretty::pretty_def};
+    use crate::util::{pretty::pretty_def, sub_set_iter::SubSetIter};
 
     use super::*;
 
@@ -461,7 +626,7 @@ mod tests {
                 let ys = c
                     .binds()
                     .into_iter()
-                    .filter(|(_, t)| is_unr(t))
+                    .filter(|(_, t)| t.is_unr())
                     .map(|(x, _)| x)
                     .collect::<HashSet<_>>();
                 if ys.is_disjoint(&xs) {
@@ -546,126 +711,4 @@ mod tests {
     //         eprintln!("{}\t{}", i, pretty_def(&c))
     //     }
     // }
-}
-
-pub struct SubSetIter<T> {
-    pub set: HashSet<T>,
-    pub cur: usize,
-    pub max: usize,
-}
-
-impl<T: Clone + Hash + Eq> SubSetIter<T> {
-    pub fn from(set: HashSet<T>) -> Self {
-        Self {
-            cur: 0,
-            max: 2usize.pow(set.len() as u32),
-            set,
-        }
-    }
-}
-
-impl<T: Clone + Hash + Eq> Iterator for SubSetIter<T> {
-    type Item = HashSet<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.cur < self.max {
-            let mut res = HashSet::new();
-            let mut i = self.cur;
-            for x in &self.set {
-                let contained = i % 2 == 1;
-                i = i / 2;
-                if contained {
-                    res.insert(x.clone());
-                }
-            }
-            self.cur += 1;
-            Some(res)
-        } else {
-            None
-        }
-    }
-}
-
-pub struct CtxEnum {
-    pub vars: Vec<Id>,
-    pub catalanian: Vec<usize>,
-    pub cur: usize,
-}
-
-pub fn catalanians_up_to(n: usize) -> Vec<usize> {
-    let mut catalanian = vec![0, 1];
-    for i in 2..=n {
-        let mut c = 0;
-        for j in 1..i {
-            c += catalanian[j] * catalanian[i - j] * 2;
-        }
-        catalanian.push(c)
-    }
-
-    catalanian
-}
-
-pub fn gen_ctx(cats: &[usize], vars: &[Id], i: usize) -> Option<Ctx> {
-    // eprintln!("gen_ctx({cats:?}, {}, {})", vars.len(), i);
-    let mut cur = 0;
-    let mut prev = 0;
-    let n = vars.len();
-    if vars.len() == 0 {
-        return None;
-    } else if vars.len() == 1 {
-        // return Some(Ctx::Bind(fake_span(vars[0].clone()), fake_span(Type::Unit)));
-        return Some(Ctx::Bind(
-            fake_span(vars[0].clone()),
-            fake_span(Type::Regex(fake_span(Regex::Char(0)))),
-        ));
-    }
-    for x in 1..n {
-        cur += cats[x] * cats[n - x] * 2;
-        // eprintln!(
-        //     "cur = cats[{x}] * cats[{}] = {} * {} = {}",
-        //     n - x,
-        //     cats[x],
-        //     cats[n - x],
-        //     cur
-        // );
-        // eprintln!("Loop {x}, cur {cur}, prev {prev}");
-        if i < cur {
-            let ord = (i - prev) / (cats[x] * cats[n - x]);
-            let i = (i - prev) % (cats[x] * cats[n - x]);
-            let j = i % cats[x];
-            let k = i / cats[x];
-            return Some(Join(
-                gen_ctx(cats, &vars[0..x], j)?,
-                gen_ctx(cats, &vars[x..n], k)?,
-                if ord == 0 { Ordered } else { Unordered },
-            ));
-        }
-        prev = cur;
-    }
-    // eprintln!("NOT CAUGHT BY LOOP");
-    None
-}
-
-impl CtxEnum {
-    pub fn new(vars: Vec<Id>) -> Self {
-        Self {
-            catalanian: catalanians_up_to(vars.len()),
-            vars,
-            cur: 0,
-        }
-    }
-}
-
-impl Iterator for CtxEnum {
-    type Item = Ctx;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.cur < self.catalanian[self.vars.len()] {
-            self.cur += 1;
-            // eprintln!("\nGenerating {}", self.cur - 1);
-            Some(gen_ctx(&self.catalanian, &self.vars, self.cur - 1).unwrap())
-        } else {
-            None
-        }
-    }
 }

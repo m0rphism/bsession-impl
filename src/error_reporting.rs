@@ -1,4 +1,4 @@
-use crate::{lexer::LexerError, pretty, typechecker::TypeError, util::pretty::PrettyOpts};
+use crate::{lexer::LexerError, pretty, type_checker::TypeError, util::pretty::PrettyOpts};
 use ariadne::{Color, ColorGenerator, Fmt, IndexType, Label, Report, ReportKind, Source};
 use peg::error::ParseError;
 

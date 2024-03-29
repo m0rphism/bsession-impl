@@ -1,44 +1,9 @@
 use crate::{
     regex::Regex,
     syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
-    util::span::Spanned,
+    type_context::{Ctx, JoinOrd},
+    util::span::{fake_span, Spanned},
 };
-
-impl Type {
-    pub fn is_subtype_of(&self, other: &Type) -> bool {
-        match (self, other) {
-            (Type::Unit, Type::Unit) => true,
-            (Type::Regex(r1), Type::Regex(r2)) => r1.is_subseteq_of(r2),
-            (Type::Arr(m1, p1, t11, t12), Type::Arr(m2, p2, t21, t22)) => {
-                m1 == m2 && p1 == p2 && t11.is_subtype_of(t21) && t22.is_subtype_of(t12)
-            }
-            (Type::Prod(m1, t11, t12), Type::Prod(m2, t21, t22)) => {
-                m1 == m2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
-            }
-            (_, _) => false,
-        }
-    }
-    pub fn is_equal_to(&self, other: &Type) -> bool {
-        match (self, other) {
-            (Type::Unit, Type::Unit) => true,
-            (Type::Regex(r1), Type::Regex(r2)) => r1.is_equal_to(r2),
-            (Type::Arr(m1, p1, t11, t12), Type::Arr(m2, p2, t21, t22)) => {
-                m1 == m2 && p1 == p2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
-            }
-            (Type::Prod(m1, t11, t12), Type::Prod(m2, t21, t22)) => {
-                m1 == m2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
-            }
-            (_, _) => false,
-        }
-    }
-}
-
-pub fn lub(p1: Eff, p2: Eff) -> Eff {
-    match p1 {
-        Eff::Yes => Eff::Yes,
-        Eff::No => p2,
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum TypeError {
@@ -54,128 +19,6 @@ pub enum TypeError {
     InvalidWrite(SRegex, SWord),
     InvalidSplitArg(SRegex, SRegex),
     InvalidSplitRes(SRegex, SRegex),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JoinOrd {
-    Ordered,
-    Unordered,
-}
-
-pub fn is_unr(t: &Type) -> bool {
-    match t {
-        Type::Unit => true,
-        Type::Regex(_) => false,
-        Type::Arr(m, _, _, _) => m.val == Mult::Unr,
-        Type::Prod(m, _, _) => m.val == Mult::Unr,
-    }
-}
-
-pub fn is_ord(t: &Type) -> bool {
-    !is_unr(t)
-}
-
-#[derive(Debug, Clone)]
-pub enum Ctx {
-    Empty,
-    Bind(SId, SType),
-    Join(Box<Ctx>, Box<Ctx>, JoinOrd),
-}
-
-impl Ctx {
-    pub fn map_binds(&self, f: &mut impl FnMut(&Id, &Type)) {
-        match self {
-            Ctx::Empty => (),
-            Ctx::Bind(x, t) => f(x, t),
-            Ctx::Join(c1, c2, _o) => {
-                c1.map_binds(f);
-                c2.map_binds(f);
-            }
-        }
-    }
-    pub fn is_unr(&self) -> bool {
-        let mut unr = true;
-        self.map_binds(&mut |_x, t| unr = unr && is_unr(t));
-        unr
-    }
-    pub fn lookup_ord_pure(&self, x: &Id) -> Option<(Ctx, SType)> {
-        let mut c = self.clone();
-        c.lookup_ord(x).map(|t| (c, t))
-    }
-    pub fn lookup_ord(&mut self, x: &Id) -> Option<SType> {
-        match self {
-            Ctx::Empty => None,
-            Ctx::Bind(y, t) if x == &y.val => {
-                if is_ord(t) {
-                    let t = t.clone();
-                    *self = Ctx::Empty;
-                    Some(t)
-                } else {
-                    Some(t.clone())
-                }
-            }
-            Ctx::Bind(_y, _t) => None,
-            Ctx::Join(c1, c2, o) => c1.lookup_ord(x).or_else(|| {
-                if c1.is_unr() || *o == JoinOrd::Ordered {
-                    c2.lookup_ord(x)
-                } else {
-                    None
-                }
-            }),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum CtxCtx {
-    Hole,
-    JoinL(Box<CtxCtx>, Box<Ctx>, JoinOrd),
-    JoinR(Box<Ctx>, Box<CtxCtx>, JoinOrd),
-}
-
-impl CtxCtx {
-    pub fn fill(&self, c: Ctx) -> Ctx {
-        match self {
-            CtxCtx::Hole => c,
-            CtxCtx::JoinL(cc1, c2, o) => Ctx::Join(Box::new(cc1.fill(c)), c2.clone(), o.clone()),
-            CtxCtx::JoinR(c1, cc2, o) => Ctx::Join(c1.clone(), Box::new(cc2.fill(c)), o.clone()),
-        }
-    }
-}
-
-pub type Trace = Vec<(SId, SType)>;
-
-pub fn models(T: &Trace, C: &Ctx) -> Option<CtxCtx> {
-    None
-}
-
-pub fn fake_span<T>(t: T) -> Spanned<T> {
-    Spanned::new(t, 0..0)
-}
-
-impl Mult {
-    pub fn to_join_ord(&self) -> JoinOrd {
-        match self {
-            Mult::Unr => JoinOrd::Ordered,
-            Mult::Lin => JoinOrd::Unordered,
-            Mult::OrdL => JoinOrd::Ordered,
-            Mult::OrdR => JoinOrd::Ordered,
-        }
-    }
-    pub fn choose_ctxs<'a>(&self, c1: &'a Ctx, c2: &'a Ctx) -> (&'a Ctx, &'a Ctx) {
-        match self {
-            Mult::OrdR => (c2, c1),
-            _ => (c1, c2),
-        }
-    }
-}
-
-pub fn leq(e1: Eff, e2: Eff) -> bool {
-    match (e1, e2) {
-        (Eff::Yes, Eff::Yes) => true,
-        (Eff::Yes, Eff::No) => false,
-        (Eff::No, _) => true,
-    }
 }
 
 pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx, Ctx), TypeError> {
@@ -209,7 +52,7 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<(Eff, Ctx, Ctx), TypeErr
                     ),
                 };
                 let (po, co1, co2) = check(&ctx2, e_body, t2)?;
-                if leq(po, p.val) {
+                if Eff::leq(po, p.val) {
                     Ok((Eff::No, co1, co2))
                 } else {
                     Err(TypeError::MismatchEff(p.clone(), fake_span(po)))
@@ -320,7 +163,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> 
                         }
                         Type::Arr(_m2, p, t11, t12) if t11.val == t2.val => Ok((
                             t12.as_ref().clone(),
-                            lub(p.val, lub(p1, p2)),
+                            Eff::lub(p.val, Eff::lub(p1, p2)),
                             Ctx::Join(Box::new(c21), Box::new(c11), m.to_join_ord()),
                             c12,
                         )),
@@ -336,7 +179,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> 
                         }
                         Type::Arr(_m2, p, t11, t12) if t11.val == t2.val => Ok((
                             t12.as_ref().clone(),
-                            lub(p.val, lub(p1, p2)),
+                            Eff::lub(p.val, Eff::lub(p1, p2)),
                             Ctx::Join(Box::new(c11), Box::new(c21), m.to_join_ord()),
                             c22,
                         )),
@@ -351,7 +194,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> 
             // TODO: if m is linear, check used contexts
             Ok((
                 fake_span(Type::Prod(m.clone(), Box::new(t1), Box::new(t2))),
-                lub(p1, p2),
+                Eff::lub(p1, p2),
                 Ctx::Join(Box::new(c11), Box::new(c21), m.to_join_ord()),
                 c22,
             ))
@@ -366,7 +209,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff, Ctx, Ctx), TypeError> 
 
 pub fn infer_type(e: &SExpr) -> Result<(SType, Eff), TypeError> {
     let (t, e, _c1, c2) = infer(&Ctx::Empty, e)?;
-    if !is_unr(&t) {
+    if !t.is_unr() {
         Err(TypeError::OrdReturn(t))
     } else if !c2.is_unr() {
         Err(TypeError::LeftOver(c2))

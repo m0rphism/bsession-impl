@@ -87,3 +87,62 @@ pub enum Expr {
     // Loc(Loc),
 }
 pub type SExpr = Spanned<Expr>;
+
+impl Type {
+    pub fn is_subtype_of(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Unit, Type::Unit) => true,
+            (Type::Regex(r1), Type::Regex(r2)) => r1.is_subseteq_of(r2),
+            (Type::Arr(m1, p1, t11, t12), Type::Arr(m2, p2, t21, t22)) => {
+                m1 == m2 && p1 == p2 && t11.is_subtype_of(t21) && t22.is_subtype_of(t12)
+            }
+            (Type::Prod(m1, t11, t12), Type::Prod(m2, t21, t22)) => {
+                m1 == m2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
+            }
+            (_, _) => false,
+        }
+    }
+    pub fn is_equal_to(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Unit, Type::Unit) => true,
+            (Type::Regex(r1), Type::Regex(r2)) => r1.is_equal_to(r2),
+            (Type::Arr(m1, p1, t11, t12), Type::Arr(m2, p2, t21, t22)) => {
+                m1 == m2 && p1 == p2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
+            }
+            (Type::Prod(m1, t11, t12), Type::Prod(m2, t21, t22)) => {
+                m1 == m2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
+            }
+            (_, _) => false,
+        }
+    }
+
+    pub fn is_unr(&self) -> bool {
+        match self {
+            Type::Unit => true,
+            Type::Regex(_) => false,
+            Type::Arr(m, _, _, _) => m.val == Mult::Unr,
+            Type::Prod(m, _, _) => m.val == Mult::Unr,
+        }
+    }
+
+    pub fn is_ord(&self) -> bool {
+        !self.is_unr()
+    }
+}
+
+impl Eff {
+    pub fn lub(p1: Eff, p2: Eff) -> Eff {
+        match p1 {
+            Eff::Yes => Eff::Yes,
+            Eff::No => p2,
+        }
+    }
+
+    pub fn leq(e1: Eff, e2: Eff) -> bool {
+        match (e1, e2) {
+            (Eff::Yes, Eff::Yes) => true,
+            (Eff::Yes, Eff::No) => false,
+            (Eff::No, _) => true,
+        }
+    }
+}

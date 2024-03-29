@@ -28,3 +28,7 @@ impl<T> DerefMut for Spanned<T> {
         &mut self.val
     }
 }
+
+pub fn fake_span<T>(t: T) -> Spanned<T> {
+    Spanned::new(t, 0..0)
+}
