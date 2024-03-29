@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
 
+use crate::regex::Regex;
 use crate::syntax::{SId, SType, Type};
 use crate::typechecker::{fake_span, is_unr};
 use crate::util::pretty::{Pretty, PrettyEnv};
@@ -115,6 +116,8 @@ impl Ctx {
         }
         true
     }
+    // FIXME: (a , b , c) with all types unrestricted can be split for
+    // {a, b}, but currently produces bad output.
     pub fn split(&self, xs: &HashSet<Id>) -> Option<Option<(CtxCtx, Ctx)>> {
         match self {
             Ctx::Empty => Some(None), // no splitting necessary
@@ -168,7 +171,15 @@ impl Ctx {
                             Join(c1, c2, Ordered),
                         )))
                     } else {
-                        None
+                        let ((c11, c12), (c21, c22)) = (cc1.pull_closed(), cc2.pull_closed());
+                        Some(Some((
+                            JoinR(
+                                Join(c11, c21, Unordered),
+                                JoinL(Hole, Join(c12, c22, Unordered), Ordered),
+                                Ordered,
+                            ),
+                            Join(c1, c2, Unordered),
+                        )))
                     }
                 }
             },
@@ -187,6 +198,7 @@ impl Ctx {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemCtx {
     pub ord: Graph<(Id, Type)>,
     pub unr: HashSet<(Id, Type)>,
@@ -225,6 +237,9 @@ impl SemCtx {
             ord: self.ord.plus(&other.ord),
             unr: self.unr.union(&other.unr).cloned().collect(),
         }
+    }
+    pub fn is_subctx_of(&self, other: &Self) -> bool {
+        self.ord.is_subgraph_of(&other.ord) && other.unr.is_subset(&self.unr)
     }
 }
 
@@ -389,6 +404,20 @@ impl CtxCtx {
         }
     }
 
+    pub fn pull_closed(&self) -> (Ctx, Ctx) {
+        match self {
+            CtxCtx::Hole => (Ctx::Empty, Ctx::Empty),
+            CtxCtx::JoinL(cc, c, o) => {
+                let (c1, c2) = cc.pull_closed();
+                (c1, CtxS::Join(c2, c, *o))
+            }
+            CtxCtx::JoinR(c, cc, o) => {
+                let (c1, c2) = cc.pull_closed();
+                (CtxS::Join(c, c1, *o), c2)
+            }
+        }
+    }
+
     pub fn simplify(&self) -> Self {
         match self {
             CtxCtx::Hole => CtxCtx::Hole,
@@ -480,25 +509,44 @@ mod tests {
         Bind(fake_span(x.to_string()), fake_span(Type::Unit))
     }
 
-    pub fn u(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>) -> Ctx {
+    fn u(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>) -> Ctx {
         Join(c1, c2, Unordered)
     }
-    pub fn o(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>) -> Ctx {
+    fn o(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>) -> Ctx {
         Join(c1, c2, Ordered)
     }
 
-    fn test_split(c: &Ctx, xs: impl IntoIterator<Item = &'static str>) {
-        let xs: HashSet<Id> = xs.into_iter().map(|x| x.to_string()).collect();
+    fn test_split<S: AsRef<str>>(c: &Ctx, xs: impl IntoIterator<Item = S>) {
+        let xs: HashSet<Id> = xs.into_iter().map(|x| x.as_ref().to_string()).collect();
         eprintln!("\n––––––––––––––––––––––––––––––––––––––––––––––––––");
         eprintln!("Ctx:          {}", pretty_def(&c));
         eprintln!("Vars:         {}", pretty_def(&xs));
-        eprintln!("Splittable:   {}", c.is_splittable(&xs));
+        let splittable = c.is_splittable(&xs);
+        eprintln!("Splittable:   {}", splittable);
+        if !splittable {
+            return;
+        }
         match c.split(&xs) {
             Some(Some((cc, c2))) => {
                 let cc = cc.simplify();
                 let c2 = c2.simplify();
                 eprintln!("Split CtxCtx: {}", pretty_def(&cc));
                 eprintln!("Split Ctx:    {}", pretty_def(&c2));
+
+                let cc_vars = cc.fill(Ctx::Empty).vars();
+                assert!(
+                    cc_vars.is_disjoint(&xs),
+                    "Split CtxCtx is not disjoint to xs"
+                );
+
+                let c2_vars = c2.vars();
+                assert!(c2_vars.is_subset(&xs), "Split Ctx is not a subset of xs");
+
+                let c_res = cc.fill(c2);
+                assert!(
+                    c.to_sem().is_subctx_of(&c_res.to_sem()),
+                    "Split context is not equal to original"
+                );
             }
             Some(None) => {
                 let ys = c
@@ -523,7 +571,7 @@ mod tests {
     //     test_split(&c, ["a"]);
     //     test_split(&c, ["b"]);
     //     test_split(&c, ["a", "b"]);
-    //     test_split(&c, []);
+    //     test_split::<String>(&c, []);
     // }
 
     // #[test]
@@ -532,21 +580,98 @@ mod tests {
     //     test_split(&c, ["a"]);
     //     test_split(&c, ["b"]);
     //     test_split(&c, ["a", "b"]);
-    //     test_split(&c, []);
+    //     test_split::<String>(&c, []);
     // }
 
     #[test]
-    fn gen_ctxs() {
-        let it = CtxEnum::new(vec![
-            "x".to_string(),
-            "y".to_string(),
-            "z".to_string(),
-            "w".to_string(),
+    fn split_3() {
+        let c = o(bind("a"), o(bind("b"), bind("c")));
+        test_split(&c, ["a", "c"]);
+    }
+
+    #[test]
+    fn ctx_split() {
+        let xs = vec![
             "a".to_string(),
-        ]);
+            "b".to_string(),
+            "c".to_string(),
+            "d".to_string(),
+            // "e".to_string(),
+            // "f".to_string(),
+        ];
+        let xs_set: HashSet<Id> = xs.iter().cloned().collect();
+        let it = CtxEnum::new(xs.clone());
         eprintln!("");
+        let mut count = 0;
         for (i, c) in it.enumerate() {
-            eprintln!("{}\t{}", i, pretty_def(&c))
+            for (j, ys) in SubSetIter::from(xs_set.clone()).enumerate() {
+                eprintln!("\nTest {count}, Ctx {i}, Subset {j}");
+                test_split(&c, &ys);
+                count += 1;
+            }
+        }
+    }
+
+    // #[test]
+    // fn gen_subsets() {
+    //     let xs = HashSet::from(["x", "y", "z", "w"]);
+    //     let it = SubSetIter::from(xs);
+    //     eprintln!("");
+    //     for (i, ys) in it.enumerate() {
+    //         eprintln!("\nSubset {i} {ys:?}");
+    //     }
+    // }
+
+    // #[test]
+    // fn gen_ctxs() {
+    //     let it = CtxEnum::new(vec![
+    //         "x".to_string(),
+    //         "y".to_string(),
+    //         "z".to_string(),
+    //         "w".to_string(),
+    //         "a".to_string(),
+    //     ]);
+    //     eprintln!("");
+    //     for (i, c) in it.enumerate() {
+    //         eprintln!("{}\t{}", i, pretty_def(&c))
+    //     }
+    // }
+}
+
+pub struct SubSetIter<T> {
+    pub set: HashSet<T>,
+    pub cur: usize,
+    pub max: usize,
+}
+
+impl<T: Clone + Hash + Eq> SubSetIter<T> {
+    pub fn from(set: HashSet<T>) -> Self {
+        Self {
+            cur: 0,
+            max: 2usize.pow(set.len() as u32),
+            set,
+        }
+    }
+}
+
+impl<T: Clone + Hash + Eq> Iterator for SubSetIter<T> {
+    type Item = HashSet<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur < self.max {
+            let mut res = HashSet::new();
+            let mut i = self.cur;
+            for x in &self.set {
+                let contained = i % 2 == 1;
+                i = i / 2;
+                if contained {
+                    res.insert(x.clone());
+                }
+            }
+            self.cur += 1;
+            Some(res)
+        } else {
+            None
         }
     }
 }
@@ -562,7 +687,7 @@ pub fn catalanians_up_to(n: usize) -> Vec<usize> {
     for i in 2..=n {
         let mut c = 0;
         for j in 1..i {
-            c += catalanian[j] * catalanian[i - j];
+            c += catalanian[j] * catalanian[i - j] * 2;
         }
         catalanian.push(c)
     }
@@ -578,10 +703,14 @@ pub fn gen_ctx(cats: &[usize], vars: &[Id], i: usize) -> Option<Ctx> {
     if vars.len() == 0 {
         return None;
     } else if vars.len() == 1 {
-        return Some(Ctx::Bind(fake_span(vars[0].clone()), fake_span(Type::Unit)));
+        // return Some(Ctx::Bind(fake_span(vars[0].clone()), fake_span(Type::Unit)));
+        return Some(Ctx::Bind(
+            fake_span(vars[0].clone()),
+            fake_span(Type::Regex(fake_span(Regex::Char(0)))),
+        ));
     }
     for x in 1..n {
-        cur += cats[x] * cats[n - x];
+        cur += cats[x] * cats[n - x] * 2;
         // eprintln!(
         //     "cur = cats[{x}] * cats[{}] = {} * {} = {}",
         //     n - x,
@@ -591,12 +720,14 @@ pub fn gen_ctx(cats: &[usize], vars: &[Id], i: usize) -> Option<Ctx> {
         // );
         // eprintln!("Loop {x}, cur {cur}, prev {prev}");
         if i < cur {
-            let j = (i - prev) % cats[x];
-            let k = (i - prev) / cats[x];
+            let ord = (i - prev) / (cats[x] * cats[n - x]);
+            let i = (i - prev) % (cats[x] * cats[n - x]);
+            let j = i % cats[x];
+            let k = i / cats[x];
             return Some(Join(
                 gen_ctx(cats, &vars[0..x], j)?,
                 gen_ctx(cats, &vars[x..n], k)?,
-                Ordered,
+                if ord == 0 { Ordered } else { Unordered },
             ));
         }
         prev = cur;
