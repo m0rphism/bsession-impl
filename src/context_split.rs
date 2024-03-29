@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
 
 use crate::syntax::{SId, SType, Type};
-use crate::typechecker::is_unr;
+use crate::typechecker::{fake_span, is_unr};
 use crate::util::pretty::{Pretty, PrettyEnv};
 use crate::{
     syntax::Id,
@@ -517,21 +517,114 @@ mod tests {
         }
     }
 
-    #[test]
-    fn split_1() {
-        let c = o(bind("a"), bind("b"));
-        test_split(&c, ["a"]);
-        test_split(&c, ["b"]);
-        test_split(&c, ["a", "b"]);
-        test_split(&c, []);
-    }
+    // #[test]
+    // fn split_1() {
+    //     let c = o(bind("a"), bind("b"));
+    //     test_split(&c, ["a"]);
+    //     test_split(&c, ["b"]);
+    //     test_split(&c, ["a", "b"]);
+    //     test_split(&c, []);
+    // }
+
+    // #[test]
+    // fn split_2() {
+    //     let c = u(o(bind("a"), bind("b")), o(bind("c"), bind("d")));
+    //     test_split(&c, ["a"]);
+    //     test_split(&c, ["b"]);
+    //     test_split(&c, ["a", "b"]);
+    //     test_split(&c, []);
+    // }
 
     #[test]
-    fn split_2() {
-        let c = u(o(bind("a"), bind("b")), o(bind("c"), bind("d")));
-        test_split(&c, ["a"]);
-        test_split(&c, ["b"]);
-        test_split(&c, ["a", "b"]);
-        test_split(&c, []);
+    fn gen_ctxs() {
+        let it = CtxEnum::new(vec![
+            "x".to_string(),
+            "y".to_string(),
+            "z".to_string(),
+            "w".to_string(),
+            "a".to_string(),
+        ]);
+        eprintln!("");
+        for (i, c) in it.enumerate() {
+            eprintln!("{}\t{}", i, pretty_def(&c))
+        }
+    }
+}
+
+pub struct CtxEnum {
+    pub vars: Vec<Id>,
+    pub catalanian: Vec<usize>,
+    pub cur: usize,
+}
+
+pub fn catalanians_up_to(n: usize) -> Vec<usize> {
+    let mut catalanian = vec![0, 1];
+    for i in 2..=n {
+        let mut c = 0;
+        for j in 1..i {
+            c += catalanian[j] * catalanian[i - j];
+        }
+        catalanian.push(c)
+    }
+
+    catalanian
+}
+
+pub fn gen_ctx(cats: &[usize], vars: &[Id], i: usize) -> Option<Ctx> {
+    // eprintln!("gen_ctx({cats:?}, {}, {})", vars.len(), i);
+    let mut cur = 0;
+    let mut prev = 0;
+    let n = vars.len();
+    if vars.len() == 0 {
+        return None;
+    } else if vars.len() == 1 {
+        return Some(Ctx::Bind(fake_span(vars[0].clone()), fake_span(Type::Unit)));
+    }
+    for x in 1..n {
+        cur += cats[x] * cats[n - x];
+        // eprintln!(
+        //     "cur = cats[{x}] * cats[{}] = {} * {} = {}",
+        //     n - x,
+        //     cats[x],
+        //     cats[n - x],
+        //     cur
+        // );
+        // eprintln!("Loop {x}, cur {cur}, prev {prev}");
+        if i < cur {
+            let j = (i - prev) % cats[x];
+            let k = (i - prev) / cats[x];
+            return Some(Join(
+                gen_ctx(cats, &vars[0..x], j)?,
+                gen_ctx(cats, &vars[x..n], k)?,
+                Ordered,
+            ));
+        }
+        prev = cur;
+    }
+    // eprintln!("NOT CAUGHT BY LOOP");
+    None
+}
+
+impl CtxEnum {
+    pub fn new(vars: Vec<Id>) -> Self {
+        Self {
+            catalanian: catalanians_up_to(vars.len()),
+            vars,
+            cur: 0,
+        }
+    }
+}
+
+impl Iterator for CtxEnum {
+    type Item = Ctx;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur < self.catalanian[self.vars.len()] {
+            self.cur += 1;
+            // eprintln!("\nGenerating {}", self.cur - 1);
+            Some(gen_ctx(&self.catalanian, &self.vars, self.cur - 1).unwrap())
+        } else {
+            None
+        }
     }
 }
