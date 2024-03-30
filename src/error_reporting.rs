@@ -270,6 +270,20 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     )],
                 );
             }
+            TypeError::SeqDropsOrd(e, t) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Type Error",
+                    [label(
+                        e.span,
+                        format!(
+                            "First sub-expression in sequence has an ordered type: {}.",
+                            pretty_def(&t)
+                        ),
+                    )],
+                );
+            }
             _ => println!("{e:?}"),
         },
     }

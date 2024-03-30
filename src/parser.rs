@@ -82,11 +82,19 @@ peg::parser! {
             / e:expr_lam() { e }
         pub rule sexpr_ann() -> SExpr = spanned(<expr_ann()>)
 
+        #[cache]
         pub rule expr_lam() -> Expr
             = [Tok(Lambda)] [Tok(BracketL)] m:smult() [Tok(BracketR)] x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(m, x, Box::new(e)) }
-            / [Tok(Let)] x:sid() [Tok(Comma)] [Tok(BracketL)] m:smult() [Tok(BracketR)] y:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::Let(m, x, y, Box::new(e1), Box::new(e2)) }
-            / e:expr_app() { e }
+            / [Tok(Let)] x:sid() [Tok(Comma)] [Tok(BracketL)] m:smult() [Tok(BracketR)] y:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::LetPair(m, x, y, Box::new(e1), Box::new(e2)) }
+            / [Tok(Let)] x:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::Let(x, Box::new(e1), Box::new(e2)) }
+            / e:expr_seq() { e }
         pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
+
+        #[cache_left_rec]
+        pub rule expr_seq() -> Expr
+            = e1:sexpr_app() [Tok(Semicolon)] e2:sexpr_seq() { Expr::Seq(Box::new(e1), Box::new(e2)) }
+            / e:expr_app() { e }
+        pub rule sexpr_seq() -> SExpr = spanned(<expr_seq()>)
 
         #[cache_left_rec]
         pub rule expr_app() -> Expr

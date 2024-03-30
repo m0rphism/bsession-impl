@@ -79,18 +79,18 @@ impl Pretty<UserState> for Expr {
     fn pp(&self, p: &mut PrettyEnv<UserState>) {
         match self {
             Expr::Unit => p.pp("unit"),
-            Expr::New(r) => p.infix(2, L, |p| {
+            Expr::New(r) => p.infix(3, L, |p| {
                 p.pp("new {");
                 p.pp_prec(0, r);
                 p.pp("}")
             }),
-            Expr::Write(w, e) => p.infix(2, L, |p| {
+            Expr::Write(w, e) => p.infix(3, L, |p| {
                 p.pp("!");
                 p.pp(w);
                 p.pp(" ");
                 p.pp_arg(R, e);
             }),
-            Expr::Split(r, e) => p.infix(2, L, |p| {
+            Expr::Split(r, e) => p.infix(3, L, |p| {
                 p.pp("split ");
                 p.pp(r);
                 p.pp(" ");
@@ -110,7 +110,7 @@ impl Pretty<UserState> for Expr {
                 p.pp_arg(R, e);
                 p.pp("");
             }),
-            Expr::App(m, e1, e2) => p.infix(2, L, |p| {
+            Expr::App(m, e1, e2) => p.infix(3, L, |p| {
                 p.pp_arg(L, e1);
                 p.pp(" [ ");
                 p.pp(m);
@@ -127,7 +127,7 @@ impl Pretty<UserState> for Expr {
                 p.pp(" ] ");
                 p.pp(e2);
             }),
-            Expr::Let(m, x, y, e1, e2) => p.infix(1, R, |p| {
+            Expr::LetPair(m, x, y, e1, e2) => p.infix(1, R, |p| {
                 p.pp("let ");
                 p.pp(x);
                 p.pp(",[ ");
@@ -139,11 +139,24 @@ impl Pretty<UserState> for Expr {
                 p.pp(" in ");
                 p.pp(e2);
             }),
+            Expr::Let(x, e1, e2) => p.infix(1, R, |p| {
+                p.pp("let ");
+                p.pp(x);
+                p.pp(" = ");
+                p.pp(e1);
+                p.pp(" in ");
+                p.pp(e2);
+            }),
             Expr::Ann(e, t) => {
                 p.pp(e);
                 p.pp(" : ");
                 p.pp(t);
             }
+            Expr::Seq(e1, e2) => p.infix(2, R, |p| {
+                p.pp_arg(L, e1);
+                p.pp("; ");
+                p.pp_arg(R, e2);
+            }),
         }
     }
 }

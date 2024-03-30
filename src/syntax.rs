@@ -72,7 +72,9 @@ pub enum Expr {
     Abs(SMult, SId, Box<SExpr>),
     App(SMult, Box<SExpr>, Box<SExpr>),
     Pair(SMult, Box<SExpr>, Box<SExpr>),
-    Let(SMult, SId, SId, Box<SExpr>, Box<SExpr>),
+    LetPair(SMult, SId, SId, Box<SExpr>, Box<SExpr>),
+    Let(SId, Box<SExpr>, Box<SExpr>),
+    Seq(Box<SExpr>, Box<SExpr>),
     Ann(Box<SExpr>, SType),
     // Int(i64),
     // Float(f64),
@@ -113,10 +115,12 @@ impl Expr {
             Expr::Abs(_m, x, e) => without(e.free_vars(), &x.val),
             Expr::App(_m, e1, e2) => union(e1.free_vars(), e2.free_vars()),
             Expr::Pair(_m, e1, e2) => union(e1.free_vars(), e2.free_vars()),
-            Expr::Let(_m, x, y, e1, e2) => {
+            Expr::LetPair(_m, x, y, e1, e2) => {
                 union(e1.free_vars(), without(without(e2.free_vars(), y), x))
             }
-            Expr::Ann(e, t) => e.free_vars(),
+            Expr::Ann(e, _t) => e.free_vars(),
+            Expr::Let(x, e1, e2) => union(e1.free_vars(), without(e2.free_vars(), x)),
+            Expr::Seq(e1, e2) => union(e1.free_vars(), e2.free_vars()),
         }
     }
 }

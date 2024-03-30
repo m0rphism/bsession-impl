@@ -22,6 +22,7 @@ pub enum TypeError {
     Shadowing(Spanned<Expr>, Spanned<String>),
     CtxNotUnr(Spanned<Expr>, Ctx),
     NewEmpty(Spanned<Regex<u8>>),
+    SeqDropsOrd(Spanned<Expr>, Spanned<Type>),
 }
 
 // TODO: Sub-Effecting or Effect-Subtyping
@@ -243,7 +244,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 Eff::lub(p1, p2),
             ))
         }
-        Expr::Let(m, x, y, e1, e2) => {
+        Expr::LetPair(m, x, y, e1, e2) => {
             let ctx_vars = ctx.vars();
             if ctx_vars.contains(&x.val) {
                 Err(TypeError::Shadowing(e.clone(), x.clone()))?
@@ -310,6 +311,46 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
         Expr::Ann(e, t) => {
             let eff = check(ctx, e, t)?;
             Ok((t.clone(), eff))
+        }
+        Expr::Let(x, e1, e2) => {
+            let c1 = ctx.restrict(&e1.free_vars());
+            let c2 = ctx.restrict(&e2.free_vars());
+
+            let (t1, p1) = infer(&c1, e1)?;
+            let c2x = CtxS::Join(CtxS::Bind(x.clone(), t1), &c2, JoinOrd::Ordered);
+
+            let (t2, p2) = infer(&c2x, e2)?;
+
+            let c12 = CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered);
+            if !ctx.is_subctx_of(&c12) {
+                Err(TypeError::CtxSplitFailed(
+                    e.clone(),
+                    ctx.clone(),
+                    c12.clone(),
+                ))?
+            }
+            Ok((t2, Eff::lub(p1, p2)))
+        }
+        Expr::Seq(e1, e2) => {
+            let c1 = ctx.restrict(&e1.free_vars());
+            let c2 = ctx.restrict(&e2.free_vars());
+
+            let (t1, p1) = infer(&c1, e1)?;
+            let (t2, p2) = infer(&c2, e2)?;
+
+            if t1.is_ord() {
+                Err(TypeError::SeqDropsOrd(e.clone(), t1.clone()))?
+            }
+
+            let c12 = CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered);
+            if !ctx.is_subctx_of(&c12) {
+                Err(TypeError::CtxSplitFailed(
+                    e.clone(),
+                    ctx.clone(),
+                    c12.clone(),
+                ))?
+            }
+            Ok((t2, Eff::lub(p1, p2)))
         }
     }
 }
