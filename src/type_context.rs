@@ -8,10 +8,31 @@ use crate::util::graph::Graph;
 use crate::util::pretty::{Pretty, PrettyEnv};
 use crate::util::span::fake_span;
 
+use CtxCtxS::*;
+use CtxS::*;
+use JoinOrd::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinOrd {
     Ordered,
     Unordered,
+}
+
+impl Mult {
+    pub fn to_join_ord(&self) -> JoinOrd {
+        match self {
+            Mult::Unr => JoinOrd::Ordered,
+            Mult::Lin => JoinOrd::Unordered,
+            Mult::OrdL => JoinOrd::Ordered,
+            Mult::OrdR => JoinOrd::Ordered,
+        }
+    }
+    pub fn choose_ctxs<'a>(&self, c1: &'a Ctx, c2: &'a Ctx) -> (&'a Ctx, &'a Ctx) {
+        match self {
+            Mult::OrdR => (c2, c1),
+            _ => (c1, c2),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +40,22 @@ pub enum Ctx {
     Empty,
     Bind(SId, SType),
     Join(Box<Ctx>, Box<Ctx>, JoinOrd),
+}
+
+#[allow(non_snake_case)]
+pub mod CtxS {
+    use super::*;
+
+    #[allow(non_upper_case_globals)]
+    pub const Empty: Ctx = Ctx::Empty;
+
+    pub fn Bind(x: SId, t: SType) -> Ctx {
+        Ctx::Bind(x, t)
+    }
+
+    pub fn Join(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>, o: JoinOrd) -> Ctx {
+        Ctx::Join(c1.boxed(), c2.boxed(), o)
+    }
 }
 
 impl Ctx {
@@ -63,79 +100,7 @@ impl Ctx {
             }),
         }
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum CtxCtx {
-    Hole,
-    JoinL(Box<CtxCtx>, Box<Ctx>, JoinOrd),
-    JoinR(Box<Ctx>, Box<CtxCtx>, JoinOrd),
-}
-
-impl CtxCtx {
-    pub fn fill(&self, c: Ctx) -> Ctx {
-        match self {
-            CtxCtx::Hole => c,
-            CtxCtx::JoinL(cc1, c2, o) => Ctx::Join(Box::new(cc1.fill(c)), c2.clone(), o.clone()),
-            CtxCtx::JoinR(c1, cc2, o) => Ctx::Join(c1.clone(), Box::new(cc2.fill(c)), o.clone()),
-        }
-    }
-}
-
-impl Mult {
-    pub fn to_join_ord(&self) -> JoinOrd {
-        match self {
-            Mult::Unr => JoinOrd::Ordered,
-            Mult::Lin => JoinOrd::Unordered,
-            Mult::OrdL => JoinOrd::Ordered,
-            Mult::OrdR => JoinOrd::Ordered,
-        }
-    }
-    pub fn choose_ctxs<'a>(&self, c1: &'a Ctx, c2: &'a Ctx) -> (&'a Ctx, &'a Ctx) {
-        match self {
-            Mult::OrdR => (c2, c1),
-            _ => (c1, c2),
-        }
-    }
-}
-
-#[allow(non_snake_case)]
-pub mod CtxS {
-    use super::*;
-
-    #[allow(non_upper_case_globals)]
-    pub const Empty: Ctx = Ctx::Empty;
-
-    pub fn Bind(x: SId, t: SType) -> Ctx {
-        Ctx::Bind(x, t)
-    }
-
-    pub fn Join(c1: impl Boxed<Ctx>, c2: impl Boxed<Ctx>, o: JoinOrd) -> Ctx {
-        Ctx::Join(c1.boxed(), c2.boxed(), o)
-    }
-}
-
-#[allow(non_snake_case)]
-pub mod CtxCtxS {
-    use super::*;
-
-    #[allow(non_upper_case_globals)]
-    pub const Hole: CtxCtx = CtxCtx::Hole;
-
-    pub fn JoinL(cc: impl Boxed<CtxCtx>, c: impl Boxed<Ctx>, o: JoinOrd) -> CtxCtx {
-        CtxCtx::JoinL(cc.boxed(), c.boxed(), o)
-    }
-
-    pub fn JoinR(c: impl Boxed<Ctx>, cc: impl Boxed<CtxCtx>, o: JoinOrd) -> CtxCtx {
-        CtxCtx::JoinR(c.boxed(), cc.boxed(), o)
-    }
-}
-
-use CtxCtxS::*;
-use CtxS::*;
-use JoinOrd::*;
-
-impl Ctx {
     pub fn vars(&self) -> HashSet<Id> {
         let mut res = HashSet::new();
         self.map_binds(&mut |x, _t| {
@@ -257,52 +222,37 @@ impl Ctx {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SemCtx {
-    pub ord: Graph<(Id, Type)>,
-    pub unr: HashSet<(Id, Type)>,
+#[derive(Debug, Clone)]
+pub enum CtxCtx {
+    Hole,
+    JoinL(Box<CtxCtx>, Box<Ctx>, JoinOrd),
+    JoinR(Box<Ctx>, Box<CtxCtx>, JoinOrd),
 }
 
-impl SemCtx {
-    pub fn empty() -> Self {
-        Self {
-            ord: Graph::empty(),
-            unr: HashSet::new(),
-        }
+#[allow(non_snake_case)]
+pub mod CtxCtxS {
+    use super::*;
+
+    #[allow(non_upper_case_globals)]
+    pub const Hole: CtxCtx = CtxCtx::Hole;
+
+    pub fn JoinL(cc: impl Boxed<CtxCtx>, c: impl Boxed<Ctx>, o: JoinOrd) -> CtxCtx {
+        CtxCtx::JoinL(cc.boxed(), c.boxed(), o)
     }
-    pub fn bind(x: Id, t: Type) -> Self {
-        let mut c = Self::empty();
-        if t.is_unr() {
-            c.unr.insert((x, t));
-        } else {
-            c.ord = Graph::singleton((x, t));
-        }
-        c
-    }
-    pub fn join(&self, other: &Self, o: JoinOrd) -> Self {
-        match o {
-            JoinOrd::Ordered => self.plus(other),
-            JoinOrd::Unordered => self.union(other),
-        }
-    }
-    pub fn union(&self, other: &Self) -> Self {
-        Self {
-            ord: self.ord.union(&other.ord),
-            unr: self.unr.union(&other.unr).cloned().collect(),
-        }
-    }
-    pub fn plus(&self, other: &Self) -> Self {
-        Self {
-            ord: self.ord.plus(&other.ord),
-            unr: self.unr.union(&other.unr).cloned().collect(),
-        }
-    }
-    pub fn is_subctx_of(&self, other: &Self) -> bool {
-        self.ord.is_subgraph_of(&other.ord) && other.unr.is_subset(&self.unr)
+
+    pub fn JoinR(c: impl Boxed<Ctx>, cc: impl Boxed<CtxCtx>, o: JoinOrd) -> CtxCtx {
+        CtxCtx::JoinR(c.boxed(), cc.boxed(), o)
     }
 }
 
 impl CtxCtx {
+    pub fn fill(&self, c: Ctx) -> Ctx {
+        match self {
+            CtxCtx::Hole => c,
+            CtxCtx::JoinL(cc1, c2, o) => Ctx::Join(Box::new(cc1.fill(c)), c2.clone(), o.clone()),
+            CtxCtx::JoinR(c1, cc2, o) => Ctx::Join(c1.clone(), Box::new(cc2.fill(c)), o.clone()),
+        }
+    }
     pub fn is_left(&self) -> bool {
         match self {
             CtxCtx::Hole => true,
@@ -413,6 +363,51 @@ impl CtxCtx {
                 (c1, c2) => CtxCtxS::JoinR(c1, c2, *o),
             },
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemCtx {
+    pub ord: Graph<(Id, Type)>,
+    pub unr: HashSet<(Id, Type)>,
+}
+
+impl SemCtx {
+    pub fn empty() -> Self {
+        Self {
+            ord: Graph::empty(),
+            unr: HashSet::new(),
+        }
+    }
+    pub fn bind(x: Id, t: Type) -> Self {
+        let mut c = Self::empty();
+        if t.is_unr() {
+            c.unr.insert((x, t));
+        } else {
+            c.ord = Graph::singleton((x, t));
+        }
+        c
+    }
+    pub fn join(&self, other: &Self, o: JoinOrd) -> Self {
+        match o {
+            JoinOrd::Ordered => self.plus(other),
+            JoinOrd::Unordered => self.union(other),
+        }
+    }
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            ord: self.ord.union(&other.ord),
+            unr: self.unr.union(&other.unr).cloned().collect(),
+        }
+    }
+    pub fn plus(&self, other: &Self) -> Self {
+        Self {
+            ord: self.ord.plus(&other.ord),
+            unr: self.unr.union(&other.unr).cloned().collect(),
+        }
+    }
+    pub fn is_subctx_of(&self, other: &Self) -> bool {
+        self.ord.is_subgraph_of(&other.ord) && other.unr.is_subset(&self.unr)
     }
 }
 
