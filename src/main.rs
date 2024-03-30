@@ -29,7 +29,8 @@ fn main() {
     let args = Args::parse();
     let src_path = args.src_path.to_string_lossy();
     if let Err(e) = run(&args) {
-        report_error(&src_path, e);
+        let src = std::fs::read_to_string(&*src_path).unwrap();
+        report_error(&src_path, &src, e);
         exit(1)
     }
 }
@@ -38,7 +39,7 @@ pub fn run(args: &Args) -> Result<(), IErr> {
     println!("===== SRC =====");
     let src = std::fs::read_to_string(&args.src_path).unwrap();
     println!("{src}\n");
-    let _ = typecheck(&src);
+    let _ = typecheck(&src)?;
     Ok(())
 }
 
