@@ -21,7 +21,12 @@ pub enum TypeError {
     InvalidSplitRes(SRegex, SRegex),
     CtxSplitFailed(SExpr, Ctx, Ctx),
     CtxCtxSplitFailed(Spanned<Expr>, Ctx, std::collections::HashSet<String>),
+    Shadowing(Spanned<Expr>, Spanned<String>),
+    CtxNotUnr(Spanned<Expr>, Ctx),
+    NewEmpty(Spanned<Regex<u8>>),
 }
+
+// TODO: Sub-Effecting or Effect-Subtyping
 
 pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
     match &e.val {
@@ -31,6 +36,12 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
                 Err(TypeError::MismatchMult(m.clone(), m2.clone()))
             }
             Type::Arr(_m2, p, t1, t2) => {
+                if m.val == Mult::Unr && !ctx.is_unr() {
+                    Err(TypeError::CtxNotUnr(e.clone(), ctx.clone()))?
+                }
+                if ctx.vars().contains(&x.val) {
+                    Err(TypeError::Shadowing(e.clone(), x.clone()))?
+                }
                 let ctx2 = match m.val {
                     Mult::Unr => CtxS::Join(
                         ctx,
@@ -84,6 +95,7 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
 pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
     match &e.val {
         Expr::Unit => Ok((fake_span(Type::Unit), Eff::No)),
+        Expr::New(r) if r.is_empty() => Err(TypeError::NewEmpty(r.clone()))?,
         Expr::New(r) => Ok((fake_span(Type::Regex(r.clone())), Eff::No)),
         Expr::Write(w, e) => {
             let (t, _p) = infer(ctx, e)?;
@@ -150,6 +162,15 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let c2 = ctx.restrict(&e2.free_vars());
             let (t1, p1) = infer(&c1, e1)?;
             let (t2, p2) = infer(&c2, e2)?;
+            match m.val {
+                Mult::OrdL if p2 == Eff::Yes => {
+                    Err(TypeError::MismatchEff(fake_span(Eff::No), fake_span(p2)))?
+                }
+                Mult::OrdR if p1 == Eff::Yes => {
+                    Err(TypeError::MismatchEff(fake_span(Eff::No), fake_span(p1)))?
+                }
+                _ => (),
+            }
             let c12 = match m.val {
                 Mult::Unr => CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered),
                 Mult::Lin => CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Unordered),
@@ -179,6 +200,16 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let (t1, p1) = infer(&c1, e1)?;
             let (t2, p2) = infer(&c2, e2)?;
 
+            match m.val {
+                Mult::OrdL if t1.is_ord() && p2 == Eff::Yes => {
+                    Err(TypeError::MismatchEff(fake_span(Eff::No), fake_span(p2)))?
+                }
+                Mult::OrdR if t2.is_ord() && p1 == Eff::Yes => {
+                    Err(TypeError::MismatchEff(fake_span(Eff::No), fake_span(p1)))?
+                }
+                _ => (),
+            }
+
             let c12 = match m.val {
                 Mult::Unr => CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered),
                 Mult::Lin => CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Unordered),
@@ -199,6 +230,13 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             ))
         }
         Expr::Let(m, x, y, e1, e2) => {
+            let ctx_vars = ctx.vars();
+            if ctx_vars.contains(&x.val) {
+                Err(TypeError::Shadowing(e.clone(), x.clone()))?
+            }
+            if ctx_vars.contains(&y.val) || x.val == y.val {
+                Err(TypeError::Shadowing(e.clone(), y.clone()))?
+            }
             let (cc, c) = match ctx.split(&e1.free_vars()) {
                 Some(Some((cc, c))) => (cc, c),
                 Some(None) => (CtxCtx::Hole, ctx.clone()),
@@ -209,11 +247,14 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 ))?,
             };
             let (t1, p1) = infer(&c, e1)?;
+            if p1 == Eff::Yes {
+                Err(TypeError::MismatchEff(fake_span(Eff::No), fake_span(p1)))?
+            }
             let (t11, t12) = match t1.val {
-                Type::Prod(m2, t11, t12) if m.val != m2.val => {
+                Type::Prod(m2, _t11, _t12) if m.val != m2.val => {
                     Err(TypeError::MismatchMult(m.clone(), m2.clone()))?
                 }
-                Type::Prod(m2, t11, t12) => (*t11, *t12),
+                Type::Prod(_m2, t11, t12) => (*t11, *t12),
                 _ => Err(TypeError::Mismatch(
                     fake_span(Type::Prod(
                         m.clone(),
@@ -245,8 +286,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                     JoinOrd::Ordered,
                 ),
             };
-            let c2 = cc.fill(c_fill);
-            infer(&c2, e2)
+            infer(&cc.fill(c_fill), e2)
         }
         Expr::Ann(e, t) => {
             let eff = check(ctx, e, t)?;
