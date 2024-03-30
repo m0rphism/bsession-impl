@@ -101,6 +101,15 @@ impl Ctx {
         }
     }
 
+    pub fn restrict(&self, xs: &HashSet<Id>) -> Self {
+        match self {
+            Ctx::Empty => Ctx::Empty,
+            Ctx::Bind(x, t) if xs.contains(&x.val) => Ctx::Bind(x.clone(), t.clone()),
+            Ctx::Bind(_, _) => Ctx::Empty,
+            Ctx::Join(c1, c2, o) => CtxS::Join(c1.restrict(xs), c2.restrict(xs), *o),
+        }
+    }
+
     pub fn vars(&self) -> HashSet<Id> {
         let mut res = HashSet::new();
         self.map_binds(&mut |x, _t| {
