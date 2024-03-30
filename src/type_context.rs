@@ -229,6 +229,9 @@ impl Ctx {
             },
         }
     }
+    pub fn is_subctx_of(&self, other: &Self) -> bool {
+        self.to_sem().is_subctx_of(&other.to_sem())
+    }
 }
 
 #[derive(Debug, Clone)]

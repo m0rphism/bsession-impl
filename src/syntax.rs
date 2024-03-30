@@ -1,5 +1,5 @@
 use crate::{regex, util::span::Spanned};
-use std::hash::Hash;
+use std::{collections::HashSet, hash::Hash};
 
 pub type Id = String;
 pub type SId = Spanned<Id>;
@@ -87,6 +87,39 @@ pub enum Expr {
     // Loc(Loc),
 }
 pub type SExpr = Spanned<Expr>;
+
+pub fn without<T: Hash + Eq>(mut xs: HashSet<T>, x: &T) -> HashSet<T> {
+    xs.remove(x);
+    xs
+}
+
+pub fn union<T: Hash + Eq>(mut xs: HashSet<T>, ys: HashSet<T>) -> HashSet<T> {
+    for y in ys {
+        xs.insert(y);
+    }
+    xs
+}
+
+impl Expr {
+    pub fn free_vars(&self) -> HashSet<Id> {
+        match self {
+            Expr::Unit => HashSet::new(),
+            Expr::New(_r) => HashSet::new(),
+            Expr::Write(_w, e) => e.free_vars(),
+            Expr::Split(_r, e) => e.free_vars(),
+            Expr::Close(e) => e.free_vars(),
+            Expr::Loc(_l) => HashSet::new(),
+            Expr::Var(x) => HashSet::from([x.val.clone()]),
+            Expr::Abs(_m, x, e) => without(e.free_vars(), &x.val),
+            Expr::App(_m, e1, e2) => union(e1.free_vars(), e2.free_vars()),
+            Expr::Pair(_m, e1, e2) => union(e1.free_vars(), e2.free_vars()),
+            Expr::Let(_m, x, y, e1, e2) => {
+                union(e1.free_vars(), without(without(e2.free_vars(), y), x))
+            }
+            Expr::Ann(e, t) => e.free_vars(),
+        }
+    }
+}
 
 impl Type {
     pub fn is_subtype_of(&self, other: &Type) -> bool {
