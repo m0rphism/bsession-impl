@@ -12,11 +12,22 @@ use Braced::Token as Tok;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 peg::parser! {
-    pub grammar rlang_parser<'a>() for SpannedToks<'a, Braced<Token<'a>>> {
+    pub grammar rlang_parser<'a>(toks: &'a SpannedToks<'a, Braced<Token<'a>>>) for SpannedToks<'a, Braced<Token<'a>>> {
         use Token::*;
 
         rule spanned<T>(t: rule<T>) -> Spanned<T>
-            = start:position!() x:t() end:position!() { Spanned::new(x, Span { start, end }) }
+            = start:position!() x:t() end:position!() {
+                // TODO: For some reason the position reporting in `peg_logos` doesn't work,
+                // so we use this workaround to convert token-spans to byte-spans ourself...
+                let start = toks.toks.get(start)
+                        .map(|t| t.span.start)
+                        .unwrap_or_else(|| toks.toks.last().unwrap().span.end);
+                let end = if end > 0 { end - 1 } else { end };
+                let end = toks.toks.get(end)
+                        .map(|t| t.span.end)
+                        .unwrap_or_else(|| toks.toks.last().unwrap().span.end);
+                Spanned::new(x, Span { start, end })
+            }
 
         // Identifier
 
