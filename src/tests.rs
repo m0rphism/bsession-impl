@@ -13,7 +13,7 @@ pub fn typecheck_(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
 
 #[test]
 fn ty_id_unr_ann() {
-    let src = "λ[unr] x. x : Unit -[ unr; pure ]→ Unit";
+    let src = "λ[unr] x. x : Unit -[ unr; 0 ]→ Unit";
     // let src = "λ[unr] x. x : Unit -[u0]→ Unit";
     // let src = "λ[unr] x. x : Unit -[u;0]→ Unit";
     // let src = "λ[unr] x. x : Unit →u0 Unit";
@@ -22,7 +22,7 @@ fn ty_id_unr_ann() {
 
 #[test]
 fn ty_id_unr() {
-    let src = "λx. x : Unit -[ unr; pure ]→ Unit";
+    let src = "λx. x : Unit -[ unr; 0 ]→ Unit";
     assert!(typecheck_(src).is_ok());
 }
 
@@ -48,7 +48,7 @@ fn ty_fail_throwaway() {
 #[test]
 fn ty_borrow_desugared() {
     let src = "
-let f = λc. close (!'x' c) : {x} -[ unr; eff ]→ Unit in
+let f = λc. close (!'x' c) : {x} -[ unr; 1 ]→ Unit in
 let r = new {xy} in
 let r1, r2 = split {x} r in
 f r1;
@@ -60,7 +60,7 @@ close (!'y' r2)
 // #[test]
 // fn ty_borrow() {
 //     let src = "
-// let f = λc. close (!'x' c) : {x} -[ unr; eff ]→ Unit in
+// let f = λc. close (!'x' c) : {x} -[ unr; 1 ]→ Unit in
 // let r = new {xy} in
 // f & r;
 // close (!'y' r)

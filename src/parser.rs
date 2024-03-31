@@ -48,8 +48,9 @@ peg::parser! {
         // Effects
 
         pub rule effect() -> EffS
-            = tok(Pure) { EffS::No }
-            / tok(Eff) { EffS::Yes }
+            = quiet!{[Tok(Int(0))] { EffS::No }}
+            / quiet!{[Tok(Int(1))] { EffS::Yes }}
+            / expected!("effect")
         pub rule seffect() -> SEff = spanned(<effect()>)
 
         // Types
