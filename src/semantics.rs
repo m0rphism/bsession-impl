@@ -30,7 +30,7 @@ impl Pretty<()> for Env {
 
 impl Pretty<()> for HeapVal {
     fn pp(&self, p: &mut crate::util::pretty::PrettyEnv<()>) {
-        p.pp("Resource: ");
+        p.pp("{ Resource: ");
         p.pp(&self.regex);
         p.pp(", Output: ");
         p.pp(&self.output);
@@ -41,6 +41,7 @@ impl Pretty<()> for HeapVal {
             .regex
             .accepts(self.output.as_bytes().into_iter().cloned())
             .to_string());
+        p.pp(" }");
     }
 }
 
@@ -50,7 +51,7 @@ impl Pretty<()> for Heap {
         env.sort_by_key(|(x, _v)| *x);
         for (i, (x, v)) in env.into_iter().enumerate() {
             if i != 0 {
-                p.pp(", ");
+                p.pp("\n");
             }
             p.pp(&x.to_string());
             p.pp(" ↦ ");
@@ -198,7 +199,8 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
                 vl.ref_count -= 1;
             } else {
                 if vl.regex.accepts(vl.output.as_bytes().into_iter().cloned()) {
-                    heap.heap.remove(&l);
+                    // heap.heap.remove(&l);
+                    vl.ref_count -= 1;
                 } else {
                     Err(EvalError::ClosedUnfinished(
                         *e1.clone(),
