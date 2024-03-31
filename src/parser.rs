@@ -8,11 +8,18 @@ use crate::util::lexer_offside::Braced;
 use crate::util::peg_logos::SpannedToks;
 use crate::util::span::{Span, Spanned};
 
+use peg::error::ParseError;
 use Braced::Token as Tok;
+
+pub type Toks<'a> = SpannedToks<'a, Braced<Token<'a>>>;
+
+pub fn parse(toks: &Toks) -> Result<SExpr, ParseError<usize>> {
+    rlang_parser::sprogram(toks, toks)
+}
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 peg::parser! {
-    pub grammar rlang_parser<'a>(toks: &'a SpannedToks<'a, Braced<Token<'a>>>) for SpannedToks<'a, Braced<Token<'a>>> {
+    pub grammar rlang_parser<'a>(toks: &'a Toks<'a>) for Toks<'a> {
         use Token::*;
 
         rule spanned<T>(t: rule<T>) -> Spanned<T>
@@ -61,12 +68,15 @@ peg::parser! {
 
         #[cache_left_rec]
         pub rule type_arrow() -> Type
-            = t1:stype_arrow() tok(Minus) tok(BracketL) m:smult() tok(Semicolon)? e:seffect() tok(BracketR) tok(Arrow) t2:stype_prod() { Type::Arr(m, e, Box::new(t1), Box::new(t2)) }
+            = t1:stype_arrow() tok(Minus) tok(BracketL) m:smult() tok(Semicolon)? e:seffect()
+              tok(BracketR) tok(Arrow) t2:stype_prod()
+              { Type::Arr(m, e, Box::new(t1), Box::new(t2)) }
             / t:type_prod() { t }
         pub rule stype_arrow() -> SType = spanned(<type_arrow()>)
 
         pub rule type_prod() -> Type
-            = t1:stype_atom() tok(Star) tok(BracketL) m:smult() tok(BracketR) t2:stype_prod() { Type::Prod(m, Box::new(t1), Box::new(t2)) }
+            = t1:stype_atom() tok(Star) tok(BracketL) m:smult() tok(BracketR) t2:stype_prod()
+              { Type::Prod(m, Box::new(t1), Box::new(t2)) }
             / t:type_atom() { t }
          
         pub rule stype_prod() -> SType = spanned(<type_prod()>)
@@ -92,9 +102,12 @@ peg::parser! {
 
         #[cache]
         pub rule expr_lam() -> Expr
-            = tok(Lambda) m:smult_opt() x:sid() tok(Period) e:sexpr_lam() { Expr::Abs(m, x, Box::new(e)) }
-            / tok(Let) x:sid() tok(Comma) y:sid() tok(Equals) e1:sexpr_ann() tok(In) e2:sexpr_lam() { Expr::LetPair(x, y, Box::new(e1), Box::new(e2)) }
-            / tok(Let) x:sid() tok(Equals) e1:sexpr_ann() tok(In) e2:sexpr_lam() { Expr::Let(x, Box::new(e1), Box::new(e2)) }
+            = tok(Lambda) m:smult_opt() x:sid() tok(Period) e:sexpr_lam()
+              { Expr::Abs(m, x, Box::new(e)) }
+            / tok(Let) x:sid() tok(Comma) y:sid() tok(Equals) e1:sexpr_ann() tok(In) e2:sexpr_lam()
+              { Expr::LetPair(x, y, Box::new(e1), Box::new(e2)) }
+            / tok(Let) x:sid() tok(Equals) e1:sexpr_ann() tok(In) e2:sexpr_lam()
+              { Expr::Let(x, Box::new(e1), Box::new(e2)) }
             / e:expr_seq() { e }
         pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
 
@@ -118,7 +131,8 @@ peg::parser! {
         #[cache]
         pub rule expr_atom() -> Expr
             = tok(ParenL) e:expr() tok(ParenR) { e }
-            / tok(ParenL) e1:sexpr() tok(Comma) m:smult_opt() e2:sexpr() tok(ParenR) { Expr::Pair(m, Box::new(e1), Box::new(e2)) }
+            / tok(ParenL) e1:sexpr() tok(Comma) m:smult_opt() e2:sexpr() tok(ParenR)
+              { Expr::Pair(m, Box::new(e1), Box::new(e2)) }
             / tok(Unit) { Expr::Unit }
             / x:sid() { Expr::Var(x.to_owned()) }
         pub rule sexpr_atom() -> SExpr = spanned(<expr_atom()>)
@@ -140,45 +154,6 @@ peg::parser! {
 
         pub rule program() -> Expr = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }
         pub rule sprogram() -> SExpr = spanned(<program()>)
-
-        // #[cache_left_rec]
-        // pub rule expr() -> Expr = precedence!{
-        //     // e1:@ tok(Or) e2:(@) { Expr::Binop(Binop::Or, Box::new(e1), Box::new(e2)) }
-        //     // --
-        //     // e1:@ tok(And) e2:(@) { Expr::Binop(Binop::And, Box::new(e1), Box::new(e2)) }
-        //     // --
-        //     // tok(Not) e:(@) { Expr::Unop(Unop::Not, Box::new(e)) }
-        //     // --
-        //     // // TODO: (in-)equality chains
-        //     // e1:@ tok(Lt) e2:(@) { Expr::Binop(Binop::Lt, Box::new(e1), Box::new(e2)) }
-        //     // e1:@ tok(Le) e2:(@) { Expr::Binop(Binop::Le, Box::new(e1), Box::new(e2)) }
-        //     // e1:@ tok(Gt) e2:(@) { Expr::Binop(Binop::Gt, Box::new(e1), Box::new(e2)) }
-        //     // e1:@ tok(Ge) e2:(@) { Expr::Binop(Binop::Ge, Box::new(e1), Box::new(e2)) }
-        //     // e1:@ tok(DoubleEquals) e2:(@) { Expr::Binop(Binop::Eq, Box::new(e1), Box::new(e2)) }
-        //     // e1:@ tok(BangEquals) e2:(@) { Expr::Binop(Binop::Neq, Box::new(e1), Box::new(e2)) }
-        //     // --
-        //     // e1:(@) tok(BracketL) e2:expr() tok(BracketR) { Expr::ListAccess(Box::new(e1), Box::new(e2)) }
-        //     // e1:@ tok(Plus) e2:(@) { Expr::Binop(Binop::Add, Box::new(e1), Box::new(e2)) }
-        //     // e1:(@) tok(Minus) e2:@ { Expr::Binop(Binop::Sub, Box::new(e1), Box::new(e2)) }
-        //     // e1:@ tok(Star) e2:(@) { Expr::Binop(Binop::Mul, Box::new(e1), Box::new(e2)) }
-        //     // e1:(@) tok(Slash) e2:@ { Expr::Binop(Binop::Div, Box::new(e1), Box::new(e2)) } // TODO: right assoc?
-        //     // e1:(@) tok(DoubleSlash) e2:@ { Expr::Binop(Binop::Div, Box::new(e1), Box::new(e2)) } // TODO
-        //     // --
-        //     // tok(Minus) e:(@) { Expr::Unop(Unop::Neg, Box::new(e)) }
-        //     // --
-        //     tok(Lambda) x:id() tok(Colon) e:(@) { Expr::Abs(x, Box::new(e)) }
-        //     --
-        //     e1:(@) e2:@ { Expr::App(Box::new(e1), Box::new(e2)) }
-        //     --
-        //     // tok(BracketL) es:args() tok(BracketR)  { Expr::List(es) }
-        //     // tok(None) { Expr::None }
-        //     // [Tok(Int(x))] { Expr::Int(x) }
-        //     // [Tok(Float(x))] { Expr::Float(x) }
-        //     // tok(True) { Expr::Bool(true) }
-        //     // tok(False) { Expr::Bool(false) }
-        //     // [Tok(Str(x))] { Expr::String(x.to_owned()) } // TODO: remove quotes
-        //     [Tok(Id(x))] { Expr::Var(x.to_owned()) }
-        // }
     }
 }
 

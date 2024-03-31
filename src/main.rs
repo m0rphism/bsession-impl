@@ -76,7 +76,7 @@ pub fn typecheck(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
     println!();
 
     println!("===== AST =====");
-    let e = parser::rlang_parser::sprogram(&toks, &toks).map_err(IErr::Parser)?;
+    let e = parser::parse(&toks).map_err(IErr::Parser)?;
     println!("{e:?}");
     println!();
 
