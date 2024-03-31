@@ -1,6 +1,6 @@
 use crate::{
     regex::Regex,
-    syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
+    syntax::{Eff, Expr, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
     type_context::{Ctx, CtxCtx, CtxS, JoinOrd},
     util::span::{fake_span, Spanned},
 };
@@ -9,14 +9,15 @@ use crate::{
 pub enum TypeError {
     LocationExpr(SLoc),
     UndefinedVariable(SId),
-    Mismatch(SExpr, SType, SType),
-    MismatchMult(SExpr, SMult, SMult),
+    Mismatch(SExpr, Result<SType, String>, SType),
+    MismatchMult(SExpr, SType, SMult, SMult),
     MismatchEff(SExpr, SEff, SEff),
+    MismatchEffSub(SExpr, SEff, SEff),
     TypeAnnotationMissing(SExpr),
     ClosedUnfinished(SExpr, SRegex),
     InvalidWrite(SExpr, SRegex, SWord),
     InvalidSplitArg(SRegex),
-    InvalidSplitRes(SRegex, SRegex, SRegex),
+    InvalidSplitRes(SExpr, SRegex, SRegex, SRegex),
     CtxSplitFailed(SExpr, Ctx, Ctx),
     CtxCtxSplitFailed(Spanned<Expr>, Ctx, std::collections::HashSet<String>),
     Shadowing(Spanned<Expr>, Spanned<String>),
@@ -34,7 +35,12 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
             Type::Arr(m, p, t1, t2) => {
                 if let Some(m2) = om {
                     if m.val != m2.val {
-                        Err(TypeError::MismatchMult(e.clone(), m.clone(), m2.clone()))?
+                        Err(TypeError::MismatchMult(
+                            e.clone(),
+                            t.clone(),
+                            m.clone(),
+                            m2.clone(),
+                        ))?
                     }
                 }
 
@@ -70,17 +76,16 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
                 if Eff::leq(po, p.val) {
                     Ok(Eff::No)
                 } else {
-                    Err(TypeError::MismatchEff(e.clone(), p.clone(), fake_span(po)))
+                    Err(TypeError::MismatchEffSub(
+                        *e_body.clone(),
+                        p.clone(),
+                        fake_span(po),
+                    ))
                 }
             }
             _ => Err(TypeError::Mismatch(
                 e.clone(),
-                fake_span(Type::Arr(
-                    fake_span(Mult::Unr), // TODO
-                    fake_span(Eff::Yes),
-                    Box::new(fake_span(Type::Unit)),
-                    Box::new(fake_span(Type::Unit)),
-                )),
+                Err(format!("function type")),
                 t.clone(),
             )),
         },
@@ -89,7 +94,7 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
             if t.val.is_equal_to(&t2.val) {
                 Ok(p)
             } else {
-                Err(TypeError::Mismatch(e.clone(), t.clone(), t2))
+                Err(TypeError::Mismatch(e.clone(), Ok(t.clone()), t2))
             }
         }
     }
@@ -113,7 +118,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 }
                 _ => Err(TypeError::Mismatch(
                     e.clone(),
-                    fake_span(Type::Regex(fake_span(Regex::Eps))),
+                    Err(format!("resource type")),
                     t.clone(),
                 )),
             }
@@ -127,6 +132,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                         Err(TypeError::InvalidSplitArg(r1.clone()))
                     } else if r2.is_empty() {
                         Err(TypeError::InvalidSplitRes(
+                            e.clone(),
                             r.clone(),
                             r1.clone(),
                             fake_span(r2.clone()),
@@ -144,7 +150,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 }
                 _ => Err(TypeError::Mismatch(
                     e.clone(),
-                    fake_span(Type::Regex(fake_span(Regex::Eps))),
+                    Err(format!("resource type")),
                     t.clone(),
                 )),
             }
@@ -156,7 +162,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 Type::Regex(r) => Err(TypeError::ClosedUnfinished(e2.as_ref().clone(), r.clone())),
                 _ => Err(TypeError::Mismatch(
                     e.clone(),
-                    fake_span(Type::Regex(fake_span(Regex::Eps))),
+                    Err(format!("resource type")),
                     t.clone(),
                 )),
             }
@@ -204,7 +210,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                     }
                     Ok((*t12, Eff::lub(p.val, Eff::lub(p1, p2))))
                 }
-                _ => Err(TypeError::Mismatch(e.clone(), t1.clone(), t2.clone())),
+                _ => Err(TypeError::Mismatch(e.clone(), Ok(t1.clone()), t2.clone())),
             }
         }
         Expr::Pair(om, e1, e2) => {
@@ -245,16 +251,20 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 _ => (),
             }
 
+            let t_pair = fake_span(Type::Prod(fake_span(m), Box::new(t1), Box::new(t2)));
+
             if let Some(m2) = om {
                 if m != m2.val {
-                    Err(TypeError::MismatchMult(e.clone(), fake_span(m), m2.clone()))?
+                    Err(TypeError::MismatchMult(
+                        e.clone(),
+                        t_pair.clone(),
+                        fake_span(m),
+                        m2.clone(),
+                    ))?
                 }
             }
 
-            Ok((
-                fake_span(Type::Prod(fake_span(m), Box::new(t1), Box::new(t2))),
-                Eff::lub(p1, p2),
-            ))
+            Ok((t_pair, Eff::lub(p1, p2)))
         }
         Expr::LetPair(x, y, e1, e2) => {
             let ctx_vars = ctx.vars();
@@ -285,11 +295,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 Type::Prod(m, t11, t12) => (m, *t11, *t12),
                 _ => Err(TypeError::Mismatch(
                     e.clone(),
-                    fake_span(Type::Prod(
-                        fake_span(Mult::Unr), // TODO
-                        Box::new(fake_span(Type::Unit)),
-                        Box::new(fake_span(Type::Unit)),
-                    )),
+                    Err(format!("product type")),
                     t1,
                 ))?,
             };

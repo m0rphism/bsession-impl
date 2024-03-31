@@ -2,11 +2,10 @@ use std::ops::Range;
 
 use crate::{
     lexer::LexerError,
-    pretty,
     type_checker::TypeError,
     util::pretty::{pretty_def, PrettyOpts},
 };
-use ariadne::{Color, ColorGenerator, Fmt, IndexType, Label, Report, ReportKind, Source};
+use ariadne::{ColorGenerator, IndexType, Label, Report, ReportKind, Source};
 use peg::error::ParseError;
 
 #[derive(Debug, Clone)]
@@ -59,13 +58,6 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
         path: src_path.to_string(),
         data: src.to_string(),
     };
-    let mut colors = ColorGenerator::new();
-    let a = colors.next();
-
-    let p_opts = PrettyOpts {
-        indent_by: 2,
-        max_line_len: 80,
-    };
 
     match e {
         IErr::Lexer(e) => {
@@ -108,27 +100,53 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                 );
             }
             TypeError::Mismatch(e, t_expected, t_actual) => {
+                let expected = match t_expected {
+                    Ok(t) => pretty_def(&t.val),
+                    Err(t) => t,
+                };
                 report(
                     &src,
                     e.span.start,
                     "Type Error",
-                    [
-                        label(e.span, "This expression"),
-                        label(t_actual.span, "has this type"),
-                        label(t_expected.span, "but should have this type"),
-                    ],
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression has type {} but should have {}",
+                            pretty_def(&t_actual.val),
+                            expected,
+                        ),
+                    )],
                 );
             }
-            TypeError::MismatchMult(e, m_expected, m_actual) => {
+            TypeError::MismatchMult(e, t, m_expected, m_actual) => {
                 report(
                     &src,
                     e.span.start,
                     "Type Error",
-                    [
-                        label(e.span, "In this expression"),
-                        label(m_actual.span, "got this multiplicity"),
-                        label(m_expected.span, "but should be this multiplicity"),
-                    ],
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression has type {} with multiplicity {}, but should have multiplicity {}.",
+                                pretty_def(&t.val),
+                                pretty_def(&m_actual.val),
+                                pretty_def(&m_expected.val),
+                        ),
+                    )],
+                );
+            }
+            TypeError::MismatchEffSub(e, p_expected, p_actual) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Type Error",
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression has effect {}, which is not a subeffect of {}",
+                            pretty_def(&p_actual.val),
+                            pretty_def(&p_expected.val),
+                        ),
+                    )],
                 );
             }
             TypeError::MismatchEff(e, p_expected, p_actual) => {
@@ -136,11 +154,14 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     &src,
                     e.span.start,
                     "Type Error",
-                    [
-                        label(e.span, "In this expression"),
-                        label(p_actual.span, "got this effect"),
-                        label(p_expected.span, "but should be this effect"),
-                    ],
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression has effect {}, but should have effect {}",
+                            pretty_def(&p_actual.val),
+                            pretty_def(&p_expected.val),
+                        ),
+                    )],
                 );
             }
             TypeError::TypeAnnotationMissing(e) => {
@@ -148,7 +169,7 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     &src,
                     e.span.start,
                     "Type Error",
-                    [label(e.span, "Missing type annotation")],
+                    [label(e.span, "This expression requires a type annotation")],
                 );
             }
             TypeError::ClosedUnfinished(e, r) => {
@@ -156,13 +177,13 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     &src,
                     e.span.start,
                     "Type Error",
-                    [
-                        label(
-                            e.span,
-                            "Tried to close this expression of unfinished resource type",
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression has an unfinished resource type {}",
+                            pretty_def(&r.val),
                         ),
-                        label(r.span, "Should be finished"),
-                    ],
+                    )],
                 );
             }
             TypeError::InvalidWrite(e, r, w) => {
@@ -170,10 +191,14 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     &src,
                     e.span.start,
                     "Type Error",
-                    [
-                        label(w.span, "Invalid write of this word"),
-                        label(r.span, "on this resource"),
-                    ],
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression has resource type {}, which does not support writing {}.",
+                            pretty_def(&r.val),
+                            pretty_def::<()>(&w.val),
+                        )
+                    )],
                 );
             }
             TypeError::InvalidSplitArg(r1) => {
@@ -187,16 +212,20 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     )],
                 );
             }
-            TypeError::InvalidSplitRes(r, r1, r2) => {
+            TypeError::InvalidSplitRes(e, r, r1, r2) => {
                 report(
                     &src,
                     r1.span.start,
                     "Type Error",
-                    [
-                        label(r.span, "Splitting this regex"),
-                        label(r1.span, "by this prefix"),
-                        label(r2.span, "results in this empty suffix"),
-                    ],
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression tries to split resource {} off from resource {}, which results in an invalid resource {}",
+                            pretty_def(&r1),
+                            pretty_def(&r),
+                            pretty_def(&r2),
+                        )
+                    )],
                 );
             }
             TypeError::CtxSplitFailed(e, ctx, ctx2) => {
@@ -278,13 +307,12 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     [label(
                         e.span,
                         format!(
-                            "First sub-expression in sequence has an ordered type: {}.",
+                            "First sub-expression in sequence needs to have an unrestricted type instead of {}.",
                             pretty_def(&t)
                         ),
                     )],
                 );
             }
-            _ => println!("{e:?}"),
         },
     }
 }
