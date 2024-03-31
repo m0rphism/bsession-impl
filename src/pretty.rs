@@ -1,5 +1,5 @@
 use crate::{
-    syntax::{Eff, Expr, Mult, Type},
+    syntax::{Eff, Expr, Mult, SMult, Type},
     util::pretty::{Assoc, Pretty, PrettyEnv},
     util::span::Spanned,
 };
@@ -48,6 +48,19 @@ impl Pretty<UserState> for Mult {
             Mult::Lin => p.pp("lin"),
             Mult::OrdL => p.pp("left"),
             Mult::OrdR => p.pp("right"),
+        }
+    }
+}
+
+impl Pretty<UserState> for Option<SMult> {
+    fn pp(&self, p: &mut PrettyEnv<UserState>) {
+        match self {
+            None => (),
+            Some(m) => {
+                p.pp("[");
+                p.pp(m);
+                p.pp("]");
+            }
         }
     }
 }
@@ -101,38 +114,33 @@ impl Pretty<UserState> for Expr {
                 p.pp_arg(R, e);
             }),
             Expr::Var(x) => p.str(&x.val),
-            Expr::Abs(m, x, e) => p.infix(1, R, |p| {
-                p.pp("λ[");
-                p.pp(m);
-                p.pp("] ");
+            Expr::Abs(om, x, e) => p.infix(1, R, |p| {
+                p.pp("λ");
+                p.pp(om);
                 p.pp(x);
                 p.pp(". ");
                 p.pp_arg(R, e);
                 p.pp("");
             }),
-            Expr::App(m, e1, e2) => p.infix(3, L, |p| {
+            Expr::App(e1, e2) => p.infix(3, L, |p| {
                 p.pp_arg(L, e1);
-                p.pp(" [ ");
-                p.pp(m);
-                p.pp(" ] ");
+                p.pp(" ");
                 p.pp_arg(R, e2);
             }),
             Expr::Loc(l) => {
                 p.pp(&format!("#{l:?}"));
             }
-            Expr::Pair(m, e1, e2) => p.infix(0, N, |p| {
+            Expr::Pair(om, e1, e2) => p.infix(0, N, |p| {
                 p.pp(e1);
-                p.pp(",[ ");
-                p.pp(m);
-                p.pp(" ] ");
+                p.pp(",");
+                p.pp(om);
+                p.pp(" ");
                 p.pp(e2);
             }),
-            Expr::LetPair(m, x, y, e1, e2) => p.infix(1, R, |p| {
+            Expr::LetPair(x, y, e1, e2) => p.infix(1, R, |p| {
                 p.pp("let ");
                 p.pp(x);
-                p.pp(",[ ");
-                p.pp(m);
-                p.pp(" ] ");
+                p.pp(", ");
                 p.pp(y);
                 p.pp(" = ");
                 p.pp(e1);

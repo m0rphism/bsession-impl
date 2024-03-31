@@ -25,7 +25,7 @@ pub fn typecheck_(src: &str) -> Result<(Type, Eff), IErr> {
 
 #[test]
 fn res_let() {
-    let src = "let x ,[left] y = split {a} (new {ab}) in close (!'a' x); close (!'b' y) : Unit";
+    let src = "let x, y = split {a} (new {ab}) in close (!'a' x); close (!'b' y) : Unit";
     let res = typecheck_(src);
     assert!(res.is_ok(), "Typechecking failed! Error: {res:?}");
 }

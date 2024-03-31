@@ -82,10 +82,13 @@ peg::parser! {
             / e:expr_lam() { e }
         pub rule sexpr_ann() -> SExpr = spanned(<expr_ann()>)
 
+        pub rule smult_opt() -> Option<SMult>
+            = om:([Tok(BracketL)] m:smult() [Tok(BracketR)] { m })? { om }
+
         #[cache]
         pub rule expr_lam() -> Expr
-            = [Tok(Lambda)] [Tok(BracketL)] m:smult() [Tok(BracketR)] x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(m, x, Box::new(e)) }
-            / [Tok(Let)] x:sid() [Tok(Comma)] [Tok(BracketL)] m:smult() [Tok(BracketR)] y:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::LetPair(m, x, y, Box::new(e1), Box::new(e2)) }
+            = [Tok(Lambda)] m:smult_opt() x:sid() [Tok(Period)] e:sexpr_lam() { Expr::Abs(m, x, Box::new(e)) }
+            / [Tok(Let)] x:sid() [Tok(Comma)] y:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::LetPair(x, y, Box::new(e1), Box::new(e2)) }
             / [Tok(Let)] x:sid() [Tok(Equals)] e1:sexpr_lam() [Tok(In)] e2:sexpr_lam() { Expr::Let(x, Box::new(e1), Box::new(e2)) }
             / e:expr_seq() { e }
         pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
@@ -102,14 +105,14 @@ peg::parser! {
             / [Tok(Bang)] w:sword() e:sexpr_atom() { Expr::Write(w, Box::new(e)) }
             / [Tok(Split)] r:sregex() e:sexpr_atom() { Expr::Split(r, Box::new(e)) }
             / [Tok(Close)] e:sexpr_atom() { Expr::Close(Box::new(e)) }
-            / e1:sexpr_app() [Tok(BracketL)] m:smult() [Tok(BracketR)] e2:sexpr_atom() { Expr::App(m, Box::new(e1), Box::new(e2)) }
+            / e1:sexpr_app() e2:sexpr_atom() { Expr::App(Box::new(e1), Box::new(e2)) }
             / e:expr_atom() { e }
         pub rule sexpr_app() -> SExpr = spanned(<expr_app()>)
 
         #[cache]
         pub rule expr_atom() -> Expr
             = [Tok(ParenL)] e:expr() [Tok(ParenR)] { e }
-            / [Tok(ParenL)] e1:sexpr() [Tok(Comma)] [Tok(BracketL)] m:smult() [Tok(BracketR)] e2:sexpr() [Tok(ParenR)] { Expr::Pair(m, Box::new(e1), Box::new(e2)) }
+            / [Tok(ParenL)] e1:sexpr() [Tok(Comma)] m:smult_opt() e2:sexpr() [Tok(ParenR)] { Expr::Pair(m, Box::new(e1), Box::new(e2)) }
             / [Tok(Unit)] { Expr::Unit }
             / x:sid() { Expr::Var(x.to_owned()) }
         pub rule sexpr_atom() -> SExpr = spanned(<expr_atom()>)

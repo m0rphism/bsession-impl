@@ -69,10 +69,10 @@ pub enum Expr {
     Close(Box<SExpr>),
     Loc(SLoc),
     Var(SId),
-    Abs(SMult, SId, Box<SExpr>),
-    App(SMult, Box<SExpr>, Box<SExpr>),
-    Pair(SMult, Box<SExpr>, Box<SExpr>),
-    LetPair(SMult, SId, SId, Box<SExpr>, Box<SExpr>),
+    Abs(Option<SMult>, SId, Box<SExpr>),
+    App(Box<SExpr>, Box<SExpr>),
+    Pair(Option<SMult>, Box<SExpr>, Box<SExpr>),
+    LetPair(SId, SId, Box<SExpr>, Box<SExpr>),
     Let(SId, Box<SExpr>, Box<SExpr>),
     Seq(Box<SExpr>, Box<SExpr>),
     Ann(Box<SExpr>, SType),
@@ -113,9 +113,9 @@ impl Expr {
             Expr::Loc(_l) => HashSet::new(),
             Expr::Var(x) => HashSet::from([x.val.clone()]),
             Expr::Abs(_m, x, e) => without(e.free_vars(), &x.val),
-            Expr::App(_m, e1, e2) => union(e1.free_vars(), e2.free_vars()),
+            Expr::App(e1, e2) => union(e1.free_vars(), e2.free_vars()),
             Expr::Pair(_m, e1, e2) => union(e1.free_vars(), e2.free_vars()),
-            Expr::LetPair(_m, x, y, e1, e2) => {
+            Expr::LetPair(x, y, e1, e2) => {
                 union(e1.free_vars(), without(without(e2.free_vars(), y), x))
             }
             Expr::Ann(e, _t) => e.free_vars(),
