@@ -25,7 +25,7 @@ pub enum TypeError {
     SeqDropsOrd(Spanned<Expr>, Spanned<Type>),
 }
 
-// TODO: Sub-Effecting or Effect-Subtyping
+// TODO: Effect-Subtyping
 
 pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
     match &e.val {
@@ -162,6 +162,8 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             }
         }
         Expr::Loc(l) => Err(TypeError::LocationExpr(l.clone())),
+        // TODO: This check is not necessary anymore, because contexts
+        // contain exactly the free variables.
         Expr::Var(x) => match ctx.lookup_ord_pure(x) {
             Some((ctx, t)) => Ok((t.clone(), Eff::No)),
             None => Err(TypeError::UndefinedVariable(x.clone())),
