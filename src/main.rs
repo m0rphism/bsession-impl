@@ -4,6 +4,7 @@ pub mod lexer;
 pub mod parser;
 pub mod pretty;
 pub mod regex;
+pub mod semantics;
 pub mod syntax;
 pub mod type_checker;
 pub mod type_context;
@@ -15,14 +16,19 @@ mod tests;
 use std::process::exit;
 
 use clap::Parser;
+use syntax::SExpr;
 
 use crate::{
     args::Args,
     error_reporting::{report_error, IErr},
     lexer::Token,
+    semantics::{eval, eval_, Env},
     syntax::{Eff, Type},
-    util::lexer_offside::{self, Braced},
     util::pretty::{pretty, PrettyOpts},
+    util::{
+        lexer_offside::{self, Braced},
+        pretty::pretty_def,
+    },
 };
 
 fn main() {
@@ -39,11 +45,17 @@ pub fn run(args: &Args) -> Result<(), IErr> {
     println!("===== SRC =====");
     let src = std::fs::read_to_string(&args.src_path).unwrap();
     println!("{src}\n");
-    let _ = typecheck(&src)?;
+    let (e, _t, _p) = typecheck(&src)?;
+    println!();
+
+    println!("===== EVALUATION =====");
+    let (heap, v) = eval(&e).map_err(IErr::Eval)?;
+    println!("Value: {}", pretty_def(&v));
+    println!("Heap: {}", pretty_def(&heap));
     Ok(())
 }
 
-pub fn typecheck(src: &str) -> Result<(Type, Eff), IErr> {
+pub fn typecheck(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
     // println!("===== TOKS =====");
     let toks = lexer::lex(&src).map_err(IErr::Lexer)?;
     // for (i, t) in toks.toks.iter().enumerate() {
@@ -77,9 +89,9 @@ pub fn typecheck(src: &str) -> Result<(Type, Eff), IErr> {
     println!();
 
     println!("===== TYPECHECKER =====");
-    let (t, e) = type_checker::infer_type(&e).map_err(IErr::Typing)?;
+    let (t, p) = type_checker::infer_type(&e).map_err(IErr::Typing)?;
     println!("Type: {}", pretty(&p_opts, &t));
-    println!("Effect: {}", pretty(&p_opts, &e));
+    println!("Effect: {}", pretty(&p_opts, &p));
 
-    Ok((t.val, e))
+    Ok((e, t.val, p))
 }

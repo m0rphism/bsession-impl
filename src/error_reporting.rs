@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use crate::{
     lexer::LexerError,
+    semantics::EvalError,
     type_checker::TypeError,
     util::pretty::{pretty_def, PrettyOpts},
 };
@@ -13,6 +14,7 @@ pub enum IErr {
     Lexer(LexerError),
     Parser(ParseError<usize>),
     Typing(TypeError),
+    Eval(EvalError),
 }
 
 pub struct CSource {
@@ -311,6 +313,57 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                             pretty_def(&t)
                         ),
                     )],
+                );
+            }
+        },
+        IErr::Eval(e) => match e {
+            EvalError::ValMismatch(e, v_expected, v_actual) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Evaluation Error",
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression evaluates to {} but should be {}.",
+                            pretty_def(&v_actual),
+                            v_expected,
+                        ),
+                    )],
+                );
+            }
+            EvalError::UndefinedLoc(e, l) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Evaluation Error",
+                    [label(
+                        e.span,
+                        format!("This expression evaluated to the undefined location {}.", l,),
+                    )],
+                );
+            }
+            EvalError::ClosedUnfinished(e, r, w) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Evaluation Error",
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression tries to close a resource of type {} with unfinished output '{}'.",
+                            pretty_def(&r),
+                            w,
+                        ),
+                    )],
+                );
+            }
+            EvalError::UndefinedVar(x) => {
+                report(
+                    &src,
+                    x.span.start,
+                    "Evaluation Error",
+                    [label(x.span, format!("This variable is undefined",))],
                 );
             }
         },
