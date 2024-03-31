@@ -97,7 +97,7 @@ pub enum Token<'a> {
     Plus,
     #[regex("->|→")]
     Arrow,
-    #[token("-")]
+    #[regex("-|–")]
     Minus,
     #[token("*")]
     Star,

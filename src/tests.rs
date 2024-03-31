@@ -22,7 +22,7 @@ fn ty_id_unr_ann() {
 
 #[test]
 fn ty_id_unr() {
-    let src = "λx. x : Unit -[ unr; 0 ]→ Unit";
+    let src = "λx. x : Unit –[u 0]→ Unit";
     assert!(typecheck_(src).is_ok());
 }
 

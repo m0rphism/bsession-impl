@@ -1,13 +1,9 @@
 use std::collections::HashSet;
 
 use crate::{
-    regex::Regex,
-    syntax::{Eff, Expr, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
+    syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
     type_context::{Ctx, CtxCtx, CtxS, JoinOrd},
-    util::{
-        pretty::pretty_def,
-        span::{fake_span, Spanned},
-    },
+    util::span::fake_span,
 };
 
 #[derive(Debug, Clone)]
@@ -24,14 +20,15 @@ pub enum TypeError {
     InvalidSplitArg(SRegex),
     InvalidSplitRes(SExpr, SRegex, SRegex, SRegex),
     CtxSplitFailed(SExpr, Ctx, Ctx),
-    CtxCtxSplitFailed(Spanned<Expr>, Ctx, std::collections::HashSet<String>),
-    Shadowing(Spanned<Expr>, Spanned<String>),
-    CtxNotUnr(Spanned<Expr>, Ctx),
-    NewEmpty(Spanned<Regex<u8>>),
-    SeqDropsOrd(Spanned<Expr>, Spanned<Type>),
+    CtxCtxSplitFailed(SExpr, Ctx, HashSet<Id>),
+    Shadowing(SExpr, SId),
+    CtxNotUnr(SExpr, Ctx),
+    NewEmpty(SRegex),
+    SeqDropsOrd(SExpr, SType),
+    LeftOverCtx(SExpr, Ctx),
 }
 
-// TODO: Effect-Subtyping
+// TODO: Subtyping
 
 pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
     match &e.val {
@@ -114,11 +111,25 @@ fn fresh_var() -> SId {
     fake_span(format!("FRESH_{}", n))
 }
 
+pub fn assert_unr_ctx(e: &SExpr, ctx: &Ctx) -> Result<(), TypeError> {
+    if ctx.is_unr() {
+        Ok(())
+    } else {
+        Err(TypeError::LeftOverCtx(e.clone(), ctx.clone()))
+    }
+}
+
 pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
     match &e.val {
-        Expr::Unit => Ok((fake_span(Type::Unit), Eff::No)),
+        Expr::Unit => {
+            assert_unr_ctx(e, &ctx)?;
+            Ok((fake_span(Type::Unit), Eff::No))
+        }
         Expr::New(r) if r.is_empty() => Err(TypeError::NewEmpty(r.clone()))?,
-        Expr::New(r) => Ok((fake_span(Type::Regex(r.clone())), Eff::No)),
+        Expr::New(r) => {
+            assert_unr_ctx(e, &ctx)?;
+            Ok((fake_span(Type::Regex(r.clone())), Eff::No))
+        }
         Expr::Write(w, e2) => {
             let (t, _p) = infer(ctx, e2)?;
             match &t.val {
@@ -185,7 +196,10 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
         // TODO: This check is not necessary anymore, because contexts
         // contain exactly the free variables.
         Expr::Var(x) => match ctx.lookup_ord_pure(x) {
-            Some((ctx, t)) => Ok((t.clone(), Eff::No)),
+            Some((ctx, t)) => {
+                assert_unr_ctx(e, &ctx)?;
+                Ok((t.clone(), Eff::No))
+            }
             None => Err(TypeError::UndefinedVariable(x.clone())),
         },
         Expr::Abs(_m, _x, _e) => Err(TypeError::TypeAnnotationMissing(e.clone())),

@@ -429,8 +429,8 @@ impl Pretty<()> for Ctx {
             Ctx::Empty => p.pp("·"),
             Ctx::Bind(x, t) => {
                 p.pp(x);
-                // p.pp(" : ");
-                // p.pp(t);
+                p.pp(" : ");
+                p.pp(t);
             }
             Ctx::Join(c1, c2, o) => {
                 p.pp("(");

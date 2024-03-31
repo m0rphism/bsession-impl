@@ -39,10 +39,11 @@ peg::parser! {
         // Multiplicities
 
         pub rule mult() -> Mult
-            = tok(Unr) { Mult::Unr }
-            / tok(Lin) { Mult::Lin }
-            / tok(Left) { Mult::OrdL }
-            / tok(Right) { Mult::OrdR }
+            = (tok(Unr) / [Tok(Id("u"))]) { Mult::Unr }
+            / (tok(Lin) / [Tok(Id("p"))]) { Mult::Lin }
+            / (tok(Left) / [Tok(Id("l"))]) { Mult::OrdL }
+            / (tok(Right) / [Tok(Id("r"))]) { Mult::OrdR }
+            / expected!("multiplicity")
         pub rule smult() -> SMult = spanned(<mult()>)
 
         // Effects
@@ -60,7 +61,7 @@ peg::parser! {
 
         #[cache_left_rec]
         pub rule type_arrow() -> Type
-            = t1:stype_arrow() tok(Minus) tok(BracketL) m:smult() tok(Semicolon) e:seffect() tok(BracketR) tok(Arrow) t2:stype_prod() { Type::Arr(m, e, Box::new(t1), Box::new(t2)) }
+            = t1:stype_arrow() tok(Minus) tok(BracketL) m:smult() tok(Semicolon)? e:seffect() tok(BracketR) tok(Arrow) t2:stype_prod() { Type::Arr(m, e, Box::new(t1), Box::new(t2)) }
             / t:type_prod() { t }
         pub rule stype_arrow() -> SType = spanned(<type_arrow()>)
 

@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{collections::HashSet, ops::Range};
 
 use crate::{
     lexer::LexerError,
@@ -311,6 +311,27 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                         format!(
                             "First sub-expression in sequence needs to have an unrestricted type instead of {}.",
                             pretty_def(&t)
+                        ),
+                    )],
+                );
+            }
+            TypeError::LeftOverCtx(e, ctx) => {
+                let mut xs = HashSet::new();
+                ctx.map_binds(&mut |x, t| {
+                    if !t.is_unr() {
+                        xs.insert(x.clone());
+                    }
+                });
+                let ctx = ctx.restrict(&xs).simplify();
+                report(
+                    &src,
+                    e.span.start,
+                    "Type Error",
+                    [label(
+                        e.span,
+                        format!(
+                            "Leaf expression has unused variables that must be used: {}",
+                            pretty_def(&ctx)
                         ),
                     )],
                 );
