@@ -71,6 +71,7 @@ peg::parser! {
 
         pub rule type_atom() -> Type
             = tok(UnitT) { Type::Unit }
+            / tok(ParenL) t:type_() tok(ParenR) { t }
             / r:sregex() { Type::Regex(r) }
         pub rule stype_atom() -> SType = spanned(<type_atom()>)
 
