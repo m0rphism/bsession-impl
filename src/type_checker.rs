@@ -1,8 +1,13 @@
+use std::collections::HashSet;
+
 use crate::{
     regex::Regex,
     syntax::{Eff, Expr, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
     type_context::{Ctx, CtxCtx, CtxS, JoinOrd},
-    util::span::{fake_span, Spanned},
+    util::{
+        pretty::pretty_def,
+        span::{fake_span, Spanned},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -98,6 +103,15 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
             }
         }
     }
+}
+
+fn fresh_var() -> SId {
+    static mut NEXT_FRESH_VAR: usize = 0;
+    let n = unsafe {
+        NEXT_FRESH_VAR += 1;
+        NEXT_FRESH_VAR - 1
+    };
+    fake_span(format!("FRESH_{}", n))
 }
 
 pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
@@ -212,6 +226,69 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 }
                 _ => Err(TypeError::Mismatch(e.clone(), Ok(t1.clone()), t2.clone())),
             }
+        }
+        Expr::AppBorrow(_e1, _x) => {
+            panic!("Borrows are not supported, yet")
+            ////////////////////////////////////////////////////////////////////////////////
+            // Translating borrow notation is nonlocal:
+            //   The code
+
+            //     let x = new {ab} in (f &x; close (!b) x)
+
+            //   needs to be translated to
+
+            //     let x = new {ab} in let (y , x) = split a x in (f y; close (!b) x)
+
+            //   instead of
+
+            //     let x = new {ab} in (let (y , x) = split a x in f y); close (!b) x
+
+            //   We cannot do it as a preprocessing because, we need type checker information.
+            //   We cannot do it directly in the typechecker without changing the shape of the relation.
+            ////////////////////////////////////////////////////////////////////////////////
+
+            // let c1 = {
+            //     let mut xs = ctx.vars();
+            //     xs.remove(&x.val);
+            //     ctx.restrict(&xs)
+            // };
+            // // let c2 = ctx.restrict(&HashSet::from([x.val.clone()]));
+
+            // let (t, _) = infer(&c1, &e1)?;
+            // let r = match &t.val {
+            //     Type::Arr(_m, _p, t1, _t2) => match &t1.val {
+            //         Type::Regex(r) => r.clone(),
+            //         t => Err(TypeError::Mismatch(
+            //             *e1.clone(),
+            //             Err(format!("function type with resource domain")),
+            //             fake_span(t.clone()),
+            //         ))?,
+            //     },
+            //     t => Err(TypeError::Mismatch(
+            //         *e1.clone(),
+            //         Err(format!("function type")),
+            //         fake_span(t.clone()),
+            //     ))?,
+            // };
+
+            // let y = fresh_var();
+            // let e_new = fake_span(Expr::LetPair(
+            //     y.clone(),
+            //     x.clone(),
+            //     Box::new(fake_span(Expr::Split(
+            //         r,
+            //         Box::new(fake_span(Expr::Var(x.clone()))),
+            //     ))),
+            //     Box::new(fake_span(Expr::App(
+            //         e1.clone(),
+            //         Box::new(fake_span(Expr::Var(y))),
+            //     ))),
+            // ));
+            // eprintln!("BORROW BORROW BORROW");
+            // eprintln!("Expression In: {}", pretty_def(&e));
+            // eprintln!("Expression Out: {}", pretty_def(&e_new));
+            // eprintln!("Context: {}", pretty_def(&ctx.simplify()));
+            // infer(ctx, &e_new)
         }
         Expr::Pair(om, e1, e2) => {
             let c1 = ctx.restrict(&e1.free_vars());

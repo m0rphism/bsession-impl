@@ -127,6 +127,11 @@ impl Pretty<UserState> for Expr {
                 p.pp(" ");
                 p.pp_arg(R, e2);
             }),
+            Expr::AppBorrow(e1, e2) => p.infix(3, L, |p| {
+                p.pp_arg(L, e1);
+                p.pp(" &");
+                p.pp_arg(R, e2);
+            }),
             Expr::Loc(l) => {
                 p.pp(&format!("#{l:?}"));
             }

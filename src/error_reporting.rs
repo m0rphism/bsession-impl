@@ -237,9 +237,9 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                         label(
                             e.span,
                             format!(
-                                "In this expression, splitting the context {} resulted in the invalid context {}",
-                                pretty_def(&ctx),
-                                pretty_def(&ctx2)
+                                "In this expression, splitting the context {} and rejoining it resulted in the invalid context {}",
+                                pretty_def(&ctx.simplify()),
+                                pretty_def(&ctx2.simplify())
                             )
                         ),
                     ],
@@ -254,7 +254,7 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                         e.span,
                         format!(
                             "In this expression, failed to split context {} by free variables {}",
-                            pretty_def(&ctx),
+                            pretty_def(&ctx.simplify()),
                             pretty_def(&xs)
                         ),
                     )],
@@ -283,7 +283,7 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                         e.span,
                         format!(
                             "This unrestricted lambda abstraction tries to capture a non-unrestricted context {}",
-                            pretty_def(&ctx)
+                            pretty_def(&ctx.simplify())
                         ),
                     )],
                 );

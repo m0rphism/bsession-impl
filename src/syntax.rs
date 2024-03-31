@@ -71,6 +71,7 @@ pub enum Expr {
     Var(SId),
     Abs(Option<SMult>, SId, Box<SExpr>),
     App(Box<SExpr>, Box<SExpr>),
+    AppBorrow(Box<SExpr>, SId),
     Pair(Option<SMult>, Box<SExpr>, Box<SExpr>),
     LetPair(SId, SId, Box<SExpr>, Box<SExpr>),
     Let(SId, Box<SExpr>, Box<SExpr>),
@@ -114,6 +115,7 @@ impl Expr {
             Expr::Var(x) => HashSet::from([x.val.clone()]),
             Expr::Abs(_m, x, e) => without(e.free_vars(), &x.val),
             Expr::App(e1, e2) => union(e1.free_vars(), e2.free_vars()),
+            Expr::AppBorrow(e, x) => union(e.free_vars(), HashSet::from([x.val.clone()])),
             Expr::Pair(_m, e1, e2) => union(e1.free_vars(), e2.free_vars()),
             Expr::LetPair(x, y, e1, e2) => {
                 union(e1.free_vars(), without(without(e2.free_vars(), y), x))
