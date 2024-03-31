@@ -4,6 +4,7 @@ use logos::{Lexer, Logos};
 
 use crate::util::{
     peg_logos::SpannedToks,
+    pretty::pretty_def,
     span::{Span, Spanned},
 };
 
@@ -26,7 +27,7 @@ impl Display for LexingError {
 
 impl Error for LexingError {}
 
-#[derive(Logos, Clone, Copy, Debug, PartialEq)]
+#[derive(Logos, Debug, Clone, Copy, PartialEq)]
 #[logos(skip r"[ \t\f]+")] // Ignore this regex pattern between tokens
 #[logos(skip r"#[^\n]+")] // Ignore this regex pattern between tokens
 #[logos(error = LexingError)]
@@ -176,4 +177,67 @@ pub fn lex(src: &str) -> Result<SpannedToks<Token>, LexerError> {
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(SpannedToks { src, toks })
+}
+
+impl<'a> Token<'a> {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Token::True => "true",
+            Token::False => "false",
+            Token::Let => "let",
+            Token::In => "in",
+            Token::If => "if",
+            Token::Then => "then",
+            Token::Else => "else",
+            Token::Or => "or",
+            Token::And => "and",
+            Token::Import => "import",
+            Token::Not => "not",
+            Token::New => "new",
+            Token::Split => "split",
+            Token::Unit => "unit",
+            Token::UnitT => "Unit",
+            Token::Close => "close",
+            Token::Unr => "unr",
+            Token::Lin => "lin",
+            Token::Left => "left",
+            Token::Right => "right",
+            Token::Pure => "pure",
+            Token::Eff => "eff",
+            Token::Semicolon => ";",
+            Token::BraceL => "{{",
+            Token::BraceR => "}}",
+            Token::ParenL => "(",
+            Token::ParenR => ")",
+            Token::BracketL => "[",
+            Token::BracketR => "]",
+            Token::Plus => "+",
+            Token::Arrow => "→",
+            Token::Minus => "-",
+            Token::Star => "*",
+            Token::DoubleSlash => "//",
+            Token::Slash => "/",
+            Token::Le => "<",
+            Token::Ge => ">",
+            Token::Lt => "<=",
+            Token::Gt => ">=",
+            Token::DoubleEquals => "==",
+            Token::BangEquals => "!=",
+            Token::Bang => "!",
+            Token::Equals => "=",
+            Token::Comma => ",",
+            Token::At => "@",
+            Token::Colon => ":",
+            Token::Period => ".",
+            Token::Lambda => "λ",
+            Token::Pipe => "|",
+            Token::Amp => "&",
+            Token::Regex(r) => "regex",
+            Token::Int(x) => "int",
+            Token::Float(x) => "float",
+            Token::Str(x) => "string",
+            Token::Id(x) => "variable",
+            Token::NewLine => "\\n",
+        }
+    }
 }
