@@ -267,13 +267,6 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             Ok((t_pair, Eff::lub(p1, p2)))
         }
         Expr::LetPair(x, y, e1, e2) => {
-            let ctx_vars = ctx.vars();
-            if ctx_vars.contains(&x.val) {
-                Err(TypeError::Shadowing(e.clone(), x.clone()))?
-            }
-            if ctx_vars.contains(&y.val) || x.val == y.val {
-                Err(TypeError::Shadowing(e.clone(), y.clone()))?
-            }
             let (cc, c) = match ctx.split(&e1.free_vars()) {
                 Some(Some((cc, c))) => (cc, c),
                 Some(None) => (CtxCtx::Hole, ctx.clone()),
@@ -321,7 +314,17 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                     JoinOrd::Ordered,
                 ),
             };
-            infer(&cc.fill(c_fill), e2)
+
+            let ctx_vars = cc.fill(Ctx::Empty).vars();
+            if ctx_vars.contains(&x.val) {
+                Err(TypeError::Shadowing(e.clone(), x.clone()))?
+            }
+            if ctx_vars.contains(&y.val) || x.val == y.val {
+                Err(TypeError::Shadowing(e.clone(), y.clone()))?
+            }
+
+            let ctx2 = &cc.fill(c_fill);
+            infer(ctx2, e2)
         }
         Expr::Ann(e, t) => {
             let eff = check(ctx, e, t)?;
@@ -331,10 +334,9 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let c1 = ctx.restrict(&e1.free_vars());
             let c2 = ctx.restrict(&e2.free_vars());
 
-            let (t1, p1) = infer(&c1, e1)?;
-            let c2x = CtxS::Join(CtxS::Bind(x.clone(), t1), &c2, JoinOrd::Ordered);
-
-            let (t2, p2) = infer(&c2x, e2)?;
+            if c2.vars().contains(&x.val) {
+                Err(TypeError::Shadowing(e.clone(), x.clone()))?
+            }
 
             let c12 = CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered);
             if !ctx.is_subctx_of(&c12) {
@@ -344,6 +346,10 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                     c12.clone(),
                 ))?
             }
+
+            let (t1, p1) = infer(&c1, e1)?;
+            let c2x = CtxS::Join(CtxS::Bind(x.clone(), t1), &c2, JoinOrd::Ordered);
+            let (t2, p2) = infer(&c2x, e2)?;
             Ok((t2, Eff::lub(p1, p2)))
         }
         Expr::Seq(e1, e2) => {
