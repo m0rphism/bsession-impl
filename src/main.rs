@@ -56,14 +56,14 @@ pub fn run(args: &Args) -> Result<(), IErr> {
 }
 
 pub fn typecheck(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
-    // println!("===== TOKS =====");
+    // println!("===== TOKENS =====");
     let toks = lexer::lex(&src).map_err(IErr::Lexer)?;
     // for (i, t) in toks.toks.iter().enumerate() {
     //     println!("{i}:\t{t:?}");
     // }
     // println!();
 
-    println!("===== TOKS OFFSIDE =====");
+    println!("===== TOKENS =====");
     let mut toks = lexer_offside::process_indent(toks, |_| false, |_| false);
     toks.toks = toks
         .toks
