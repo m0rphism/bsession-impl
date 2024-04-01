@@ -49,9 +49,11 @@ pub fn run(args: &Args) -> Result<(), IErr> {
     println!();
 
     println!("===== EVALUATION =====");
-    let (heap, v) = eval(&e).map_err(IErr::Eval)?;
-    println!("Value: {}", pretty_def(&v));
-    println!("Heap: {}", pretty_def(&heap));
+    let v = eval(&e).map_err(IErr::Eval)?;
+    println!(
+        "Program terminated successfully with value `{}`.",
+        pretty_def(&v)
+    );
     Ok(())
 }
 

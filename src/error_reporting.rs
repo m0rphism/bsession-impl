@@ -402,6 +402,17 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     )],
                 );
             }
+            EvalError::NonEmptyHeap(heap) => {
+                report(
+                    &src,
+                    0,
+                    format!(
+                        "Evaluation Error: Program terminated with non-empty heap:\n{}",
+                        pretty_def(&heap)
+                    ),
+                    [],
+                );
+            }
         },
     }
 }

@@ -90,6 +90,7 @@ pub struct HeapVal {
     output: Regex<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Heap {
     pub heap: HashMap<Loc, HeapVal>,
     pub next_loc: usize,
@@ -167,6 +168,7 @@ pub enum EvalError {
     ClosedUnfinished(SExpr, SRegex, Regex<u8>),
     UndefinedVar(SId),
     InvalidWrite(SExpr, SRegex, Regex<u8>),
+    NonEmptyHeap(Heap),
 }
 
 pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> {
@@ -175,7 +177,7 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
         Expr::New(r) => {
             let loc = heap.insert(r.clone());
             println!(
-                "Created resource {{{}}} at location {}",
+                "Created resource {{{}}} at location {}.",
                 pretty_def(&r),
                 loc
             );
@@ -185,7 +187,7 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
             let v1 = eval_(heap, env, e1)?;
             let (l, vl) = heap.get_mut_from_val(&v1, e1.as_ref())?;
             println!(
-                "Performed operation {{{}}} on resource at location {}",
+                "Performed operation {{{}}} on resource at location {}.",
                 pretty_def(&w),
                 l
             );
@@ -218,7 +220,7 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
             } else {
                 if vl.output.is_subseteq_of(&vl.regex) {
                     println!(
-                        "Dropped resource successfully at location {} with output {{{}}}",
+                        "Dropped resource at location {} successfully with output {{{}}}.",
                         l,
                         pretty_def(&vl.output),
                     );
@@ -286,9 +288,13 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
     }
 }
 
-pub fn eval(e: &SExpr) -> Result<(Heap, Value), EvalError> {
+pub fn eval(e: &SExpr) -> Result<Value, EvalError> {
     let mut heap = Heap::new();
     let env = Env::new();
     let v = eval_(&mut heap, &env, e)?;
-    Ok((heap, v))
+    if heap.heap.len() > 0 {
+        Err(EvalError::NonEmptyHeap(heap))
+    } else {
+        Ok(v)
+    }
 }
