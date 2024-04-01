@@ -120,9 +120,9 @@ peg::parser! {
         #[cache_left_rec]
         pub rule expr_app() -> Expr
             = tok(New) r:sregex() { Expr::New(r) }
-            / tok(Bang) w:sword() e:sexpr_atom() { Expr::Write(w, Box::new(e)) }
+            / tok(Bang) w:sregex() e:sexpr_atom() { Expr::Write(w, Box::new(e)) }
             / tok(Split) r:sregex() e:sexpr_atom() { Expr::Split(r, Box::new(e)) }
-            / tok(Close) e:sexpr_atom() { Expr::Close(Box::new(e)) }
+            / tok(Drop) e:sexpr_atom() { Expr::Drop(Box::new(e)) }
             / e1:sexpr_app() tok(Amp) x:sid() { Expr::AppBorrow(Box::new(e1), x) }
             / e1:sexpr_app() e2:sexpr_atom() { Expr::App(Box::new(e1), Box::new(e2)) }
             / e:expr_atom() { e }

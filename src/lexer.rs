@@ -63,8 +63,8 @@ pub enum Token<'a> {
     Unit,
     #[token("Unit")]
     UnitT,
-    #[token("close")]
-    Close,
+    #[token("drop")]
+    Drop,
     #[token("unr")]
     Unr,
     #[token("lin")]
@@ -197,7 +197,7 @@ impl<'a> Token<'a> {
             Token::Split => "split",
             Token::Unit => "unit",
             Token::UnitT => "Unit",
-            Token::Close => "close",
+            Token::Drop => "drop",
             Token::Unr => "unr",
             Token::Lin => "lin",
             Token::Left => "left",

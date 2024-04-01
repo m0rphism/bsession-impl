@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
+    regex::{regex, Regex},
     syntax::{Expr, Id, Loc, SExpr, SId, SRegex},
     util::pretty::{Assoc, Pretty},
 };
@@ -37,10 +38,7 @@ impl Pretty<()> for HeapVal {
         p.pp(", Ref-Count: ");
         p.pp(&self.ref_count.to_string());
         p.pp(", Valid Output: ");
-        p.pp(&self
-            .regex
-            .accepts(self.output.as_bytes().into_iter().cloned())
-            .to_string());
+        p.pp(&self.output.is_subseteq_of(&self.regex).to_string());
         p.pp(" }");
     }
 }
@@ -89,7 +87,7 @@ impl Pretty<()> for Value {
 pub struct HeapVal {
     regex: SRegex,
     ref_count: usize,
-    output: String,
+    output: Regex<u8>,
 }
 
 pub struct Heap {
@@ -112,7 +110,7 @@ impl Heap {
             HeapVal {
                 regex,
                 ref_count: 1,
-                output: String::new(),
+                output: Regex::Eps,
             },
         );
         loc
@@ -166,8 +164,9 @@ impl Env {
 pub enum EvalError {
     ValMismatch(SExpr, String, Value),
     UndefinedLoc(SExpr, usize),
-    ClosedUnfinished(SExpr, SRegex, String),
+    ClosedUnfinished(SExpr, SRegex, Regex<u8>),
     UndefinedVar(SId),
+    InvalidWrite(SExpr, SRegex, Regex<u8>),
 }
 
 pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> {
@@ -180,8 +179,17 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
         Expr::Write(w, e1) => {
             let v1 = eval_(heap, env, e1)?;
             let (l, vl) = heap.get_mut_from_val(&v1, e1.as_ref())?;
-            vl.output += &w;
-            Ok(Value::Loc(l))
+            vl.output = regex::seq(vl.output.clone(), w.val.clone()).simplify();
+            let r_rest = vl.regex.deriv_re_norm(&vl.output);
+            if r_rest.is_empty() {
+                Err(EvalError::InvalidWrite(
+                    e.clone(),
+                    vl.regex.clone(),
+                    vl.output.clone(),
+                ))
+            } else {
+                Ok(Value::Loc(l))
+            }
         }
         Expr::Split(_r, e1) => {
             let v1 = eval_(heap, env, e1)?;
@@ -192,13 +200,13 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
                 Box::new(Value::Loc(l)),
             ))
         }
-        Expr::Close(e1) => {
+        Expr::Drop(e1) => {
             let v1 = eval_(heap, env, e1)?;
             let (l, vl) = heap.get_mut_from_val(&v1, e1.as_ref())?;
             if vl.ref_count > 1 {
                 vl.ref_count -= 1;
             } else {
-                if vl.regex.accepts(vl.output.as_bytes().into_iter().cloned()) {
+                if vl.output.is_subseteq_of(&vl.regex) {
                     // heap.heap.remove(&l);
                     vl.ref_count -= 1;
                 } else {

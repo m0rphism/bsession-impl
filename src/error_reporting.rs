@@ -198,7 +198,7 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                         format!(
                             "This expression has resource type {}, which does not support writing {}.",
                             pretty_def(&r.val),
-                            pretty_def::<()>(&w.val),
+                            pretty_def(&w.val),
                         )
                     )],
                 );
@@ -385,6 +385,21 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     x.span.start,
                     "Evaluation Error",
                     [label(x.span, format!("This variable is undefined",))],
+                );
+            }
+            EvalError::InvalidWrite(e, r, r1) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Evaluation Error",
+                    [label(
+                        e.span,
+                        format!(
+                            "This expression perform an operation {} which is invalid on a resource of type {}.",
+                            pretty_def(&r1),
+                            pretty_def(&r),
+                        ),
+                    )],
                 );
             }
         },

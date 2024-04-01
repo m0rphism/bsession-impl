@@ -28,13 +28,13 @@ fn ty_id_unr() {
 
 #[test]
 fn ty_res_simple() {
-    let src = "close (! 'x' (new {x})) : Unit";
+    let src = "drop (!{x} (new {x})) : Unit";
     assert!(typecheck_(src).is_ok());
 }
 
 #[test]
 fn ty_res_let() {
-    let src = "let x, y = split {a} (new {ab}) in close (!'a' x); close (!'b' y) : Unit";
+    let src = "let x, y = split {a} (new {ab}) in drop (!{a} x); drop (!{b} y) : Unit";
     assert!(typecheck_(src).is_ok());
 }
 
@@ -48,11 +48,11 @@ fn ty_fail_throwaway() {
 #[test]
 fn ty_borrow_desugared() {
     let src = "
-let f = λc. close (!'x' c) : {x} -[ unr; 1 ]→ Unit in
+let f = λc. drop (!{x} c) : {x} -[ unr; 1 ]→ Unit in
 let r = new {xy} in
 let r1, r2 = split {x} r in
 f r1;
-close (!'y' r2)
+drop (!{y} r2)
 ";
     assert!(typecheck_(src).is_ok());
 }
@@ -60,10 +60,10 @@ close (!'y' r2)
 // #[test]
 // fn ty_borrow() {
 //     let src = "
-// let f = λc. close (!'x' c) : {x} -[ unr; 1 ]→ Unit in
+// let f = λc. drop (!{x} c) : {x} -[ unr; 1 ]→ Unit in
 // let r = new {xy} in
 // f & r;
-// close (!'y' r)
+// drop (!{y} r)
 // ";
 //     assert!(typecheck_(src).is_ok());
 // }

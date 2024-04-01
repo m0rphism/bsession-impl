@@ -1,1 +1,1 @@
-close (! 'x' (new {x})) : Unit
+drop (!{x} (new {x})) : Unit

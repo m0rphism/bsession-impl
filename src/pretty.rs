@@ -98,9 +98,9 @@ impl Pretty<UserState> for Expr {
                 p.pp("}")
             }),
             Expr::Write(w, e) => p.infix(3, L, |p| {
-                p.pp("!");
+                p.pp("!{");
                 p.pp(w);
-                p.pp(" ");
+                p.pp("} ");
                 p.pp_arg(R, e);
             }),
             Expr::Split(r, e) => p.infix(3, L, |p| {
@@ -109,8 +109,8 @@ impl Pretty<UserState> for Expr {
                 p.pp(" ");
                 p.pp_arg(R, e);
             }),
-            Expr::Close(e) => p.infix(2, L, |p| {
-                p.pp("close ");
+            Expr::Drop(e) => p.infix(2, L, |p| {
+                p.pp("drop ");
                 p.pp_arg(R, e);
             }),
             Expr::Var(x) => p.str(&x.val),

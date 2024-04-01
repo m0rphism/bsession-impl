@@ -24,6 +24,8 @@ pub use Regex::Char as char_;
 pub use Regex::Empty as empty;
 pub use Regex::Eps as eps;
 
+use super::{Example, Realizable};
+
 pub fn or<C>(e1: Regex<C>, e2: Regex<C>) -> Regex<C> {
     Regex::Or(Box::new(e1), Box::new(e2))
 }
@@ -252,6 +254,12 @@ impl<C: Copy + Debug + Eq + Hash + Ord> Regex<C> {
         // eprintln!("–––––––––––––––––––––––––––––––");
         let y = derive_re::gamma_set(&x);
         y
+    }
+    pub fn deriv_re_norm(&self, e: &Regex<C>) -> Regex<C>
+    where
+        C: Example + Realizable + Display,
+    {
+        self.deriv_re(e).to_dfa().minimized().to_regex()
     }
 }
 

@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use crate::{
-    syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, SWord, Type},
+    syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, Type},
     type_context::{Ctx, CtxCtx, CtxS, JoinOrd},
-    util::span::fake_span,
+    util::{pretty::pretty_def, span::fake_span},
 };
 
 #[derive(Debug, Clone)]
@@ -16,7 +16,7 @@ pub enum TypeError {
     MismatchEffSub(SExpr, SEff, SEff),
     TypeAnnotationMissing(SExpr),
     ClosedUnfinished(SExpr, SRegex),
-    InvalidWrite(SExpr, SRegex, SWord),
+    InvalidWrite(SExpr, SRegex, SRegex),
     InvalidSplitArg(SRegex),
     InvalidSplitRes(SExpr, SRegex, SRegex, SRegex),
     CtxSplitFailed(SExpr, Ctx, Ctx),
@@ -134,7 +134,13 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let (t, _p) = infer(ctx, e2)?;
             match &t.val {
                 Type::Regex(r) => {
-                    let r2 = r.deriv_word(w.as_bytes().iter().cloned());
+                    let r2 = r.deriv_re_norm(&w.val);
+                    eprintln!(
+                        "CHECKING WRITE: {} % {} = {}",
+                        pretty_def(&r),
+                        pretty_def(&w),
+                        pretty_def(&r2)
+                    );
                     if r2.is_empty() {
                         Err(TypeError::InvalidWrite(e.clone(), r.clone(), w.clone()))
                     } else {
@@ -152,7 +158,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let (t, p) = infer(ctx, e2)?;
             match &t.val {
                 Type::Regex(r) => {
-                    let r2 = r.deriv_re(r1);
+                    let r2 = r.deriv_re_norm(r1);
                     if r1.is_empty() {
                         Err(TypeError::InvalidSplitArg(r1.clone()))
                     } else if r2.is_empty() {
@@ -180,7 +186,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 )),
             }
         }
-        Expr::Close(e2) => {
+        Expr::Drop(e2) => {
             let (t, p) = infer(ctx, e2)?;
             match &t.val {
                 Type::Regex(r) if r.nullable() => Ok((fake_span(Type::Unit), p)),
