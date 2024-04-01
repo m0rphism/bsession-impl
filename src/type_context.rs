@@ -151,14 +151,23 @@ impl Ctx {
         }
         true
     }
-    pub fn split(&self, xs: &HashSet<Id>) -> Option<Option<(CtxCtx, Ctx)>> {
+    pub fn split(&self, xs: &HashSet<Id>) -> Option<(CtxCtx, Ctx)> {
+        match self.split_(xs)? {
+            Some((cc, c)) => Some((cc, c)),
+            None => Some((
+                CtxCtxS::JoinR(self.clone(), CtxCtx::Hole, Unordered),
+                Ctx::Empty,
+            )),
+        }
+    }
+    pub fn split_(&self, xs: &HashSet<Id>) -> Option<Option<(CtxCtx, Ctx)>> {
         match self {
             Ctx::Empty => Some(None), // no splitting necessary
             Ctx::Bind(x, t) if xs.contains(&x.val) => {
                 Some(Some((CtxCtxS::Hole, Ctx::Bind(x.clone(), t.clone()))))
             }
             Ctx::Bind(_, _) => Some(None), // no splitting necessary
-            Ctx::Join(c1, c2, Ordered) => match (c1.split(xs)?, c2.split(xs)?) {
+            Ctx::Join(c1, c2, Ordered) => match (c1.split_(xs)?, c2.split_(xs)?) {
                 (None, None) => Some(None),
                 (None, Some((cc, c))) => Some(Some((JoinR(c1, cc, Ordered), c))),
                 (Some((cc, c)), None) => Some(Some((JoinL(cc, c2, Ordered), c))),
@@ -173,7 +182,7 @@ impl Ctx {
                     }
                 }
             },
-            Ctx::Join(c1, c2, Unordered) => match (c1.split(xs)?, c2.split(xs)?) {
+            Ctx::Join(c1, c2, Unordered) => match (c1.split_(xs)?, c2.split_(xs)?) {
                 (None, None) => Some(None),
                 (None, Some((cc, c))) => Some(Some((JoinR(c1, cc, Unordered), c))),
                 (Some((cc, c)), None) => Some(Some((JoinL(cc, c2, Unordered), c))),
@@ -600,7 +609,7 @@ mod tests {
         if !splittable {
             return;
         }
-        match c.split(&xs) {
+        match c.split_(&xs) {
             Some(Some((cc, c2))) => {
                 let cc = cc.simplify();
                 let c2 = c2.simplify();

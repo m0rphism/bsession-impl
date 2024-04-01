@@ -359,8 +359,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
         }
         Expr::LetPair(x, y, e1, e2) => {
             let (cc, c) = match ctx.split(&e1.free_vars()) {
-                Some(Some((cc, c))) => (cc, c),
-                Some(None) => (CtxCtx::Hole, ctx.clone()),
+                Some((cc, c)) => (cc, c),
                 None => Err(TypeError::CtxCtxSplitFailed(
                     e.clone(),
                     ctx.clone(),
