@@ -30,15 +30,16 @@ pub enum TypeError {
 
 // TODO: Subtyping
 
-pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
-    match &e.val {
+pub fn check(ctx: &Ctx, e: &mut SExpr, t: &SType) -> Result<Eff, TypeError> {
+    let e_copy = e.clone();
+    match &mut e.val {
         Expr::Loc(l) => Err(TypeError::LocationExpr(l.clone())),
         Expr::Abs(om, x, e_body) => match &t.val {
             Type::Arr(m, p, t1, t2) => {
                 if let Some(m2) = om {
                     if m.val != m2.val {
                         Err(TypeError::MismatchMult(
-                            e.clone(),
+                            e_copy.clone(),
                             t.clone(),
                             m.clone(),
                             m2.clone(),
@@ -47,10 +48,10 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
                 }
 
                 if m.val == Mult::Unr && !ctx.is_unr() {
-                    Err(TypeError::CtxNotUnr(e.clone(), ctx.clone()))?
+                    Err(TypeError::CtxNotUnr(e_copy.clone(), ctx.clone()))?
                 }
                 if ctx.vars().contains(&x.val) {
-                    Err(TypeError::Shadowing(e.clone(), x.clone()))?
+                    Err(TypeError::Shadowing(e_copy.clone(), x.clone()))?
                 }
                 let ctx2 = match m.val {
                     Mult::Unr => CtxS::Join(
@@ -102,32 +103,16 @@ pub fn check(ctx: &Ctx, e: &SExpr, t: &SType) -> Result<Eff, TypeError> {
     }
 }
 
-fn fresh_var() -> SId {
-    static mut NEXT_FRESH_VAR: usize = 0;
-    let n = unsafe {
-        NEXT_FRESH_VAR += 1;
-        NEXT_FRESH_VAR - 1
-    };
-    fake_span(format!("FRESH_{}", n))
-}
-
-pub fn assert_unr_ctx(e: &SExpr, ctx: &Ctx) -> Result<(), TypeError> {
-    if ctx.is_unr() {
-        Ok(())
-    } else {
-        Err(TypeError::LeftOverCtx(e.clone(), ctx.clone()))
-    }
-}
-
-pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
-    match &e.val {
+pub fn infer(ctx: &Ctx, e: &mut SExpr) -> Result<(SType, Eff), TypeError> {
+    let e_copy = e.clone();
+    match &mut e.val {
         Expr::Unit => {
-            assert_unr_ctx(e, &ctx)?;
+            assert_unr_ctx(&e_copy, &ctx)?;
             Ok((fake_span(Type::Unit), Eff::No))
         }
         Expr::New(r) if r.is_empty() => Err(TypeError::NewEmpty(r.clone()))?,
         Expr::New(r) => {
-            assert_unr_ctx(e, &ctx)?;
+            assert_unr_ctx(&e_copy, &ctx)?;
             Ok((fake_span(Type::Regex(r.clone())), Eff::No))
         }
         Expr::Write(w, e2) => {
@@ -136,7 +121,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                 Type::Regex(r) => {
                     let r2 = r.deriv_re_norm(&w.val);
                     if r2.is_empty() {
-                        Err(TypeError::InvalidWrite(e.clone(), r.clone(), w.clone()))
+                        Err(TypeError::InvalidWrite(e_copy, r.clone(), w.clone()))
                     } else {
                         Ok((fake_span(Type::Regex(fake_span(r2))), Eff::Yes))
                     }
@@ -157,7 +142,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                         Err(TypeError::InvalidSplitArg(r1.clone()))
                     } else if r2.is_empty() {
                         Err(TypeError::InvalidSplitRes(
-                            e.clone(),
+                            e_copy,
                             r.clone(),
                             r1.clone(),
                             fake_span(r2.clone()),
@@ -203,7 +188,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             None => Err(TypeError::UndefinedVariable(x.clone())),
         },
         Expr::Abs(_m, _x, _e) => Err(TypeError::TypeAnnotationMissing(e.clone())),
-        Expr::App(e1, e2) => {
+        Expr::App(om, e1, e2) => {
             let c1 = ctx.restrict(&e1.free_vars());
             let c2 = ctx.restrict(&e2.free_vars());
             let (t1, p1) = infer(&c1, e1)?;
@@ -230,12 +215,9 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                         Mult::OrdR => CtxS::Join(c2.clone(), c1.clone(), JoinOrd::Ordered),
                     };
                     if !ctx.is_subctx_of(&c12) {
-                        Err(TypeError::CtxSplitFailed(
-                            e.clone(),
-                            ctx.clone(),
-                            c12.clone(),
-                        ))?
+                        Err(TypeError::CtxSplitFailed(e_copy, ctx.clone(), c12.clone()))?
                     }
+                    *om = Some(m.val);
                     Ok((*t12, Eff::lub(p.val, Eff::lub(p1, p2))))
                 }
                 _ => Err(TypeError::Mismatch(e.clone(), Ok(t1.clone()), t2.clone())),
@@ -320,7 +302,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
                         Mult::OrdL
                     } else {
                         Err(TypeError::CtxSplitFailed(
-                            e.clone(),
+                            e_copy.clone(),
                             ctx.clone(),
                             c12_ordl.clone(),
                         ))?
@@ -347,7 +329,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             if let Some(m2) = om {
                 if m != m2.val {
                     Err(TypeError::MismatchMult(
-                        e.clone(),
+                        e_copy,
                         t_pair.clone(),
                         fake_span(m),
                         m2.clone(),
@@ -361,7 +343,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let (cc, c) = match ctx.split(&e1.free_vars()) {
                 Some((cc, c)) => (cc, c),
                 None => Err(TypeError::CtxCtxSplitFailed(
-                    e.clone(),
+                    e_copy.clone(),
                     ctx.clone(),
                     e1.free_vars(),
                 ))?,
@@ -377,7 +359,7 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let (m, t11, t12) = match t1.val {
                 Type::Prod(m, t11, t12) => (m, *t11, *t12),
                 _ => Err(TypeError::Mismatch(
-                    e.clone(),
+                    e_copy.clone(),
                     Err(format!("product type")),
                     t1,
                 ))?,
@@ -407,10 +389,10 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
 
             let ctx_vars = cc.fill(Ctx::Empty).vars();
             if ctx_vars.contains(&x.val) {
-                Err(TypeError::Shadowing(e.clone(), x.clone()))?
+                Err(TypeError::Shadowing(e_copy.clone(), x.clone()))?
             }
             if ctx_vars.contains(&y.val) || x.val == y.val {
-                Err(TypeError::Shadowing(e.clone(), y.clone()))?
+                Err(TypeError::Shadowing(e_copy.clone(), y.clone()))?
             }
 
             let ctx2 = &cc.fill(c_fill);
@@ -425,13 +407,13 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             let c2 = ctx.restrict(&e2.free_vars());
 
             if c2.vars().contains(&x.val) {
-                Err(TypeError::Shadowing(e.clone(), x.clone()))?
+                Err(TypeError::Shadowing(e_copy.clone(), x.clone()))?
             }
 
             let c12 = CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered);
             if !ctx.is_subctx_of(&c12) {
                 Err(TypeError::CtxSplitFailed(
-                    e.clone(),
+                    e_copy.clone(),
                     ctx.clone(),
                     c12.clone(),
                 ))?
@@ -466,6 +448,23 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
     }
 }
 
-pub fn infer_type(e: &SExpr) -> Result<(SType, Eff), TypeError> {
+pub fn infer_type(e: &mut SExpr) -> Result<(SType, Eff), TypeError> {
     infer(&Ctx::Empty, e)
+}
+
+// fn fresh_var() -> SId {
+//     static mut NEXT_FRESH_VAR: usize = 0;
+//     let n = unsafe {
+//         NEXT_FRESH_VAR += 1;
+//         NEXT_FRESH_VAR - 1
+//     };
+//     fake_span(format!("FRESH_{}", n))
+// }
+
+pub fn assert_unr_ctx(e: &SExpr, ctx: &Ctx) -> Result<(), TypeError> {
+    if ctx.is_unr() {
+        Ok(())
+    } else {
+        Err(TypeError::LeftOverCtx(e.clone(), ctx.clone()))
+    }
 }

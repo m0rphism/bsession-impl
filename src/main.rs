@@ -78,7 +78,7 @@ pub fn typecheck(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
     println!();
 
     println!("===== AST =====");
-    let e = parser::parse(&toks).map_err(IErr::Parser)?;
+    let mut e = parser::parse(&toks).map_err(IErr::Parser)?;
     println!("{e:?}");
     println!();
 
@@ -91,7 +91,7 @@ pub fn typecheck(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
     println!();
 
     println!("===== TYPECHECKER =====");
-    let (t, p) = type_checker::infer_type(&e).map_err(IErr::Typing)?;
+    let (t, p) = type_checker::infer_type(&mut e).map_err(IErr::Typing)?;
     println!("Type: {}", pretty(&p_opts, &t));
     println!("Effect: {}", pretty(&p_opts, &p));
 

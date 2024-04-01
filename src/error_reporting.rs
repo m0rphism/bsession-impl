@@ -413,6 +413,17 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     [],
                 );
             }
+            EvalError::AppWithoutAnn(e) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Evaluation Error",
+                    [label(
+                        e.span,
+                        "This application does not have a multiplicity annotation.",
+                    )],
+                );
+            }
         },
     }
 }

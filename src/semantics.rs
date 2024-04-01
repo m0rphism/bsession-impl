@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     regex::{regex, Regex},
-    syntax::{Expr, Id, Loc, SExpr, SId, SRegex},
+    syntax::{Expr, Id, Loc, Mult, SExpr, SId, SRegex},
     util::pretty::{pretty_def, Assoc, Pretty},
 };
 
@@ -169,6 +169,7 @@ pub enum EvalError {
     UndefinedVar(SId),
     InvalidWrite(SExpr, SRegex, Regex<u8>),
     NonEmptyHeap(Heap),
+    AppWithoutAnn(SExpr),
 }
 
 pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> {
@@ -239,10 +240,15 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
         Expr::Loc(l) => Ok(Value::Loc(l.val)),
         Expr::Var(x) => env.get(x),
         Expr::Abs(_om, x, e) => Ok(Value::Abs(env.clone(), x.clone(), *e.clone())),
-        Expr::App(e1, e2) => {
-            // FIXME: Multiplicity required for evaluation order.
-            let v1 = eval_(heap, env, e1)?;
-            let v2 = eval_(heap, env, e2)?;
+        Expr::App(om, e1, e2) => {
+            let m = om.ok_or_else(|| EvalError::AppWithoutAnn(e.clone()))?;
+            let (v1, v2) = {
+                if m == Mult::OrdR {
+                    (eval_(heap, env, e1)?, eval_(heap, env, e2)?)
+                } else {
+                    (eval_(heap, env, e2)?, eval_(heap, env, e1)?)
+                }
+            };
             match v1 {
                 Value::Abs(env, x, e) => {
                     let env = env.ext(x.val, v2);

@@ -124,7 +124,7 @@ peg::parser! {
             / tok(Split) r:sregex() e:sexpr_atom() { Expr::Split(r, Box::new(e)) }
             / tok(Drop) e:sexpr_atom() { Expr::Drop(Box::new(e)) }
             / e1:sexpr_app() tok(Amp) x:sid() { Expr::AppBorrow(Box::new(e1), x) }
-            / e1:sexpr_app() e2:sexpr_atom() { Expr::App(Box::new(e1), Box::new(e2)) }
+            / e1:sexpr_app() e2:sexpr_atom() { Expr::App(None, Box::new(e1), Box::new(e2)) }
             / e:expr_atom() { e }
         pub rule sexpr_app() -> SExpr = spanned(<expr_app()>)
 
