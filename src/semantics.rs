@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     regex::{regex, Regex},
     syntax::{Expr, Id, Loc, SExpr, SId, SRegex},
-    util::pretty::{Assoc, Pretty},
+    util::pretty::{pretty_def, Assoc, Pretty},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -174,11 +174,21 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
         Expr::Unit => Ok(Value::Unit),
         Expr::New(r) => {
             let loc = heap.insert(r.clone());
+            println!(
+                "Created resource {{{}}} at location {}",
+                pretty_def(&r),
+                loc
+            );
             Ok(Value::Loc(loc))
         }
         Expr::Write(w, e1) => {
             let v1 = eval_(heap, env, e1)?;
             let (l, vl) = heap.get_mut_from_val(&v1, e1.as_ref())?;
+            println!(
+                "Performed operation {{{}}} on resource at location {}",
+                pretty_def(&w),
+                l
+            );
             vl.output = regex::seq(vl.output.clone(), w.val.clone()).simplify();
             let r_rest = vl.regex.deriv_re_norm(&vl.output);
             if r_rest.is_empty() {
@@ -207,8 +217,13 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
                 vl.ref_count -= 1;
             } else {
                 if vl.output.is_subseteq_of(&vl.regex) {
-                    // heap.heap.remove(&l);
-                    vl.ref_count -= 1;
+                    println!(
+                        "Dropped resource successfully at location {} with output {{{}}}",
+                        l,
+                        pretty_def(&vl.output),
+                    );
+                    heap.heap.remove(&l);
+                    // vl.ref_count -= 1;
                 } else {
                     Err(EvalError::ClosedUnfinished(
                         *e1.clone(),
