@@ -135,12 +135,6 @@ pub fn infer(ctx: &Ctx, e: &SExpr) -> Result<(SType, Eff), TypeError> {
             match &t.val {
                 Type::Regex(r) => {
                     let r2 = r.deriv_re_norm(&w.val);
-                    eprintln!(
-                        "CHECKING WRITE: {} % {} = {}",
-                        pretty_def(&r),
-                        pretty_def(&w),
-                        pretty_def(&r2)
-                    );
                     if r2.is_empty() {
                         Err(TypeError::InvalidWrite(e.clone(), r.clone(), w.clone()))
                     } else {
