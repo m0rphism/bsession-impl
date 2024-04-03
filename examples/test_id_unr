@@ -1,1 +1,1 @@
-λ[unr] x. x : Unit -[ unr; pure ]→ Unit
+λx. x : Unit -[ u 0 ]→ Unit
