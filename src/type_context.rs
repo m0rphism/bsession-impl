@@ -224,7 +224,7 @@ impl Ctx {
                         } else if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_left()) {
                             Some((
                                 JoinR(c1x, JoinL(CtxCtxS::Hole, c2x, Ordered), Ordered),
-                                Join(c1, c2, Ordered),
+                                Join(c2, c1, Ordered),
                             ))
                         } else {
                             let ((c11, c12), (c21, c22)) = (cc1.pull_closed(), cc2.pull_closed());
