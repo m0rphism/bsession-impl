@@ -117,6 +117,15 @@ impl Ctx {
         });
         res
     }
+    pub fn lin_vars(&self) -> HashSet<Id> {
+        let mut res = HashSet::new();
+        self.map_binds(&mut |x, t| {
+            if !t.is_unr() {
+                res.insert(x.clone());
+            }
+        });
+        res
+    }
     pub fn binds(&self) -> HashMap<Id, Type> {
         let mut res = HashMap::new();
         self.map_binds(&mut |x, t| {
@@ -152,79 +161,85 @@ impl Ctx {
         true
     }
     pub fn split(&self, xs: &HashSet<Id>) -> Option<(CtxCtx, Ctx)> {
-        match self.split_(xs)? {
-            Some((cc, c)) => Some((cc, c)),
-            None => Some((
-                CtxCtxS::JoinR(self.clone(), CtxCtx::Hole, Unordered),
-                Ctx::Empty,
-            )),
-        }
-    }
-    pub fn split_(&self, xs: &HashSet<Id>) -> Option<Option<(CtxCtx, Ctx)>> {
         match self {
-            Ctx::Empty => Some(None), // no splitting necessary
-            Ctx::Bind(x, t) if xs.contains(&x.val) => {
-                Some(Some((CtxCtxS::Hole, Ctx::Bind(x.clone(), t.clone()))))
+            Ctx::Empty => Some((CtxCtxS::Hole, Ctx::Empty)),
+            Ctx::Bind(x, t) => {
+                if !xs.contains(&x.val) {
+                    Some((
+                        CtxCtxS::JoinL(CtxCtxS::Hole, Ctx::Bind(x.clone(), t.clone()), Unordered),
+                        Ctx::Empty,
+                    ))
+                } else if t.is_ord() {
+                    Some((CtxCtxS::Hole, Ctx::Bind(x.clone(), t.clone())))
+                } else {
+                    Some((
+                        CtxCtxS::JoinL(CtxCtxS::Hole, Ctx::Bind(x.clone(), t.clone()), Unordered),
+                        Ctx::Bind(x.clone(), t.clone()),
+                    ))
+                }
             }
-            Ctx::Bind(_, _) => Some(None), // no splitting necessary
-            Ctx::Join(c1, c2, Ordered) => match (c1.split_(xs)?, c2.split_(xs)?) {
-                (None, None) => Some(None),
-                (None, Some((cc, c))) => Some(Some((JoinR(c1, cc, Ordered), c))),
-                (Some((cc, c)), None) => Some(Some((JoinL(cc, c2, Ordered), c))),
-                (Some((cc1, c1)), Some((cc2, c2))) => {
-                    if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_left()) {
-                        Some(Some((
-                            JoinR(c1x, JoinL(Hole, c2x, Ordered), Ordered),
-                            Join(c1, c2, Ordered),
-                        )))
-                    } else {
-                        None
+            Ctx::Join(c1, c2, o) => {
+                if xs.is_disjoint(&c1.vars()) {
+                    let (cc, c) = c2.split(xs)?;
+                    return Some((CtxCtxS::JoinR(c1.clone(), cc, *o), c));
+                } else if xs.is_disjoint(&c2.vars()) {
+                    let (cc, c) = c1.split(xs)?;
+                    return Some((CtxCtxS::JoinL(cc, c2.clone(), *o), c));
+                }
+                let (cc1, c1) = c1.split(xs)?;
+                let (cc2, c2) = c2.split(xs)?;
+                match o {
+                    Ordered => {
+                        if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_left()) {
+                            Some((
+                                JoinR(c1x, JoinL(Hole, c2x, Ordered), Ordered),
+                                Join(c1, c2, Ordered),
+                            ))
+                        } else {
+                            None
+                        }
+                    }
+                    Unordered => {
+                        if let (Some(c1x), Some(c2x)) = (cc1.pull_par(), cc2.pull_par()) {
+                            Some((
+                                JoinR(c1x, JoinL(CtxCtxS::Hole, c2x, Unordered), Unordered),
+                                Join(c1, c2, Unordered),
+                            ))
+                        } else if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_right())
+                        {
+                            Some((
+                                JoinR(Join(c1x, c2x, Unordered), CtxCtxS::Hole, Ordered),
+                                Join(c1, c2, Unordered),
+                            ))
+                        } else if let (Some(c1x), Some(c2x)) = (cc1.pull_left(), cc2.pull_left()) {
+                            Some((
+                                JoinL(CtxCtxS::Hole, Join(c1x, c2x, Unordered), Ordered),
+                                Join(c1, c2, Unordered),
+                            ))
+                        } else if let (Some(c1x), Some(c2x)) = (cc1.pull_left(), cc2.pull_right()) {
+                            Some((
+                                JoinR(c2x, JoinL(CtxCtxS::Hole, c1x, Ordered), Ordered),
+                                Join(c1, c2, Ordered),
+                            ))
+                        } else if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_left()) {
+                            Some((
+                                JoinR(c1x, JoinL(CtxCtxS::Hole, c2x, Ordered), Ordered),
+                                Join(c1, c2, Ordered),
+                            ))
+                        } else {
+                            let ((c11, c12), (c21, c22)) = (cc1.pull_closed(), cc2.pull_closed());
+                            Some((
+                                JoinR(
+                                    Join(c11, c21, Unordered),
+                                    JoinL(Hole, Join(c12, c22, Unordered), Ordered),
+                                    Ordered,
+                                ),
+                                Join(c1, c2, Unordered),
+                            ))
+                        }
                     }
                 }
-            },
-            Ctx::Join(c1, c2, Unordered) => match (c1.split_(xs)?, c2.split_(xs)?) {
-                (None, None) => Some(None),
-                (None, Some((cc, c))) => Some(Some((JoinR(c1, cc, Unordered), c))),
-                (Some((cc, c)), None) => Some(Some((JoinL(cc, c2, Unordered), c))),
-                (Some((cc1, c1)), Some((cc2, c2))) => {
-                    if let (Some(c1x), Some(c2x)) = (cc1.pull_par(), cc2.pull_par()) {
-                        Some(Some((
-                            JoinR(c1x, JoinL(CtxCtxS::Hole, c2x, Unordered), Unordered),
-                            Join(c1, c2, Unordered),
-                        )))
-                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_right()) {
-                        Some(Some((
-                            JoinR(Join(c1x, c2x, Unordered), CtxCtxS::Hole, Ordered),
-                            Join(c1, c2, Unordered),
-                        )))
-                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_left(), cc2.pull_left()) {
-                        Some(Some((
-                            JoinL(CtxCtxS::Hole, Join(c1x, c2x, Unordered), Ordered),
-                            Join(c1, c2, Unordered),
-                        )))
-                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_left(), cc2.pull_right()) {
-                        Some(Some((
-                            JoinR(c2x, JoinL(CtxCtxS::Hole, c1x, Ordered), Ordered),
-                            Join(c1, c2, Ordered),
-                        )))
-                    } else if let (Some(c1x), Some(c2x)) = (cc1.pull_right(), cc2.pull_left()) {
-                        Some(Some((
-                            JoinR(c1x, JoinL(CtxCtxS::Hole, c2x, Ordered), Ordered),
-                            Join(c1, c2, Ordered),
-                        )))
-                    } else {
-                        let ((c11, c12), (c21, c22)) = (cc1.pull_closed(), cc2.pull_closed());
-                        Some(Some((
-                            JoinR(
-                                Join(c11, c21, Unordered),
-                                JoinL(Hole, Join(c12, c22, Unordered), Ordered),
-                                Ordered,
-                            ),
-                            Join(c1, c2, Unordered),
-                        )))
-                    }
-                }
-            },
+            }
         }
     }
     pub fn simplify(&self) -> Self {
@@ -609,14 +624,14 @@ mod tests {
         if !splittable {
             return;
         }
-        match c.split_(&xs) {
-            Some(Some((cc, c2))) => {
+        match c.split(&xs) {
+            Some((cc, c2)) => {
                 let cc = cc.simplify();
                 let c2 = c2.simplify();
                 eprintln!("Split CtxCtx: {}", pretty_def(&cc));
                 eprintln!("Split Ctx:    {}", pretty_def(&c2));
 
-                let cc_vars = cc.fill(Ctx::Empty).vars();
+                let cc_vars = cc.fill(Ctx::Empty).lin_vars();
                 assert!(
                     cc_vars.is_disjoint(&xs),
                     "Split CtxCtx is not disjoint to xs"
@@ -636,19 +651,6 @@ mod tests {
                     eprintln!("Split context is exactly equal to original")
                 } else {
                     eprintln!("Split context is worse than original")
-                }
-            }
-            Some(None) => {
-                let ys = c
-                    .binds()
-                    .into_iter()
-                    .filter(|(_, t)| t.is_unr())
-                    .map(|(x, _)| x)
-                    .collect::<HashSet<_>>();
-                if ys.is_disjoint(&xs) {
-                    eprintln!("No splitting necessary")
-                } else {
-                    assert!(false, "No splitting done, but variables are not disjoint");
                 }
             }
             None => assert!(false, "Failed splitting"),
