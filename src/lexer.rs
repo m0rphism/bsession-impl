@@ -4,7 +4,6 @@ use logos::{Lexer, Logos};
 
 use crate::util::{
     peg_logos::SpannedToks,
-    pretty::pretty_def,
     span::{Span, Spanned},
 };
 
@@ -232,11 +231,11 @@ impl<'a> Token<'a> {
             Token::Lambda => "λ",
             Token::Pipe => "|",
             Token::Amp => "&",
-            Token::Regex(r) => "regex",
-            Token::Int(x) => "int",
-            Token::Float(x) => "float",
-            Token::Str(x) => "string",
-            Token::Id(x) => "variable",
+            Token::Regex(_r) => "regex",
+            Token::Int(_x) => "int",
+            Token::Float(_x) => "float",
+            Token::Str(_x) => "string",
+            Token::Id(_x) => "variable",
             Token::NewLine => "\\n",
         }
     }

@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use crate::{
     syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, Type},
-    type_context::{Ctx, CtxCtx, CtxS, JoinOrd},
-    util::{pretty::pretty_def, span::fake_span},
+    type_context::{Ctx, CtxS, JoinOrd},
+    util::span::fake_span,
 };
 
 #[derive(Debug, Clone)]

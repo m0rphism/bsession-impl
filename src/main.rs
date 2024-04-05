@@ -24,7 +24,6 @@ use crate::{
     lexer::Token,
     semantics::eval,
     syntax::{Eff, Type},
-    util::pretty::{pretty, PrettyOpts},
     util::{
         lexer_offside::{self, Braced},
         pretty::pretty_def,

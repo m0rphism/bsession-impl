@@ -46,7 +46,7 @@ impl<C: Copy + Debug + Eq + Hash + Display + Realizable> DFA<C> {
         queue.push_back(self.init);
         while let Some(s) = queue.pop_front() {
             if reachable.insert(s) {
-                let tgts = self.states.get_mut(&s).unwrap();
+                let tgts = self.states.get(&s).unwrap();
                 for (_c, t) in tgts.iter() {
                     queue.push_back(*t);
                 }
@@ -59,6 +59,14 @@ impl<C: Copy + Debug + Eq + Hash + Display + Realizable> DFA<C> {
             if !reachable.contains(&s) {
                 self.states.remove(&s);
             }
+        }
+        // Remove edges to unreachable states
+        for tgts in self.states.values_mut() {
+            *tgts = tgts
+                .iter()
+                .filter(|(_, tgt)| reachable.contains(tgt))
+                .map(|(c, tgt)| (*c, *tgt))
+                .collect::<HashMap<_, _>>();
         }
     }
     pub fn remove_dead_states(&mut self) {
@@ -74,10 +82,10 @@ impl<C: Copy + Debug + Eq + Hash + Display + Realizable> DFA<C> {
             }
         }
 
-        // Remove dead states
+        // Remove dead states if not init
         let keys = self.states.keys().cloned().collect::<Vec<_>>();
         for s in keys {
-            if !alive.contains(&s) {
+            if !alive.contains(&s) && s != self.init {
                 self.states.remove(&s);
             }
         }
@@ -93,11 +101,14 @@ impl<C: Copy + Debug + Eq + Hash + Display + Realizable> DFA<C> {
             }
         }
     }
-    pub fn sources(&self, tgt: usize) -> HashMap<usize, C> {
-        let mut srcs = HashMap::new();
+    // Doesnt account if a source has two edges to target!
+    pub fn sources(&self, tgt: usize) -> HashSet<(usize, C)> {
+        let mut srcs = HashSet::new();
         for (src, tgts) in &self.states {
-            if let Some((c, _)) = tgts.iter().find(|(_, tgt2)| tgt == **tgt2) {
-                srcs.insert(*src, *c);
+            for (c, tgt2) in tgts {
+                if tgt == *tgt2 {
+                    srcs.insert((*src, *c));
+                }
             }
         }
         srcs

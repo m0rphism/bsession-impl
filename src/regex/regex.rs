@@ -1,7 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::os::unix::ffi::OsStrExt;
 
 // Syntax
 
@@ -19,11 +18,13 @@ pub enum Regex<C> {
 
 // Smart constructors
 
-use ariadne::Fmt;
 pub use Regex::Char as char_;
 pub use Regex::Empty as empty;
 pub use Regex::Eps as eps;
 
+use crate::util::pretty::Pretty;
+
+use super::pretty::Char;
 use super::{Example, Realizable};
 
 pub fn or<C>(e1: Regex<C>, e2: Regex<C>) -> Regex<C> {
@@ -258,6 +259,7 @@ impl<C: Copy + Debug + Eq + Hash + Ord> Regex<C> {
     pub fn deriv_re_norm(&self, e: &Regex<C>) -> Regex<C>
     where
         C: Example + Realizable + Display,
+        Char<C>: Pretty<()>,
     {
         self.deriv_re(e).to_dfa().minimized().to_regex()
     }

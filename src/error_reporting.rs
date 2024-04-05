@@ -1,10 +1,7 @@
 use std::{collections::HashSet, ops::Range};
 
 use crate::{
-    lexer::LexerError,
-    semantics::EvalError,
-    type_checker::TypeError,
-    util::pretty::{pretty_def, PrettyOpts},
+    lexer::LexerError, semantics::EvalError, type_checker::TypeError, util::pretty::pretty_def,
 };
 use ariadne::{ColorGenerator, IndexType, Label, Report, ReportKind, Source};
 use peg::error::ParseError;
@@ -372,9 +369,9 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     [label(
                         e.span,
                         format!(
-                            "This expression tries to close a resource of type {} with unfinished output '{}'.",
+                            "This expression tries to close a resource of type {} with unfinished or invalid output '{}'.",
                             pretty_def(&r),
-                            w,
+                            pretty_def(&w),
                         ),
                     )],
                 );

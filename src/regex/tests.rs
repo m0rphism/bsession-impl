@@ -111,6 +111,23 @@ fn re_to_dfa_to_re_1() {
 //     eprintln!("–––––––––––––––––––––––");
 // }
 
+#[test]
+fn bar() {
+    let e1 = Regex::<u8>::from_str("bb|a*(ba)").unwrap();
+    let e2 = Regex::<u8>::from_str("a(a*(ba))|b(a|b)").unwrap();
+    let dfa1 = e1.to_dfa().minimized();
+    let dfa2 = e2.to_dfa().minimized();
+    eprintln!("DFA 1: {dfa1}");
+    eprintln!("DFA 2: {dfa2}");
+
+    assert!(
+        e1.is_equal_to(&e2),
+        "Not equal:\n  {}\n  {}\n",
+        pretty_def(&e1.simplify()),
+        pretty_def(&e2.simplify()),
+    );
+}
+
 // #[test]
 // fn foo() {
 //     // let e = Regex::<u8>::from_str("ab|a*c").unwrap();
@@ -121,8 +138,8 @@ fn re_to_dfa_to_re_1() {
 //     assert!(
 //         e.is_equal_to(&e2),
 //         "Not equal:\n  {}\n  {}\n  {}",
-//         pretty_def(&e),
-//         pretty_def(&e2),
+//         pretty_def(&e.simplify()),
+//         pretty_def(&e2.simplify()),
 //         dfa
 //     );
 // }

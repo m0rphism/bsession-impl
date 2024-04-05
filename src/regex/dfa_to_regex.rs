@@ -84,6 +84,15 @@ impl<C: Copy + Debug + Eq + Hash + Display> DFA<C> {
         init_tgts.insert(self.init, eps);
         states.insert(init, init_tgts);
 
+        let keys = states.keys().cloned().collect::<Vec<_>>();
+        for k1 in keys {
+            for (k2, tgts) in &mut states {
+                if *k2 != final_ && k1 != init {
+                    tgts.entry(k1).or_insert_with(|| Regex::Empty);
+                }
+            }
+        }
+
         GNFA {
             init,
             final_,

@@ -3,7 +3,6 @@ use crate::util::pretty::{Assoc, Pretty, PrettyEnv};
 use super::regex::Regex;
 
 use Assoc::Left as L;
-use Assoc::None as N;
 use Assoc::Right as R;
 
 pub struct Char<C>(C);
@@ -33,17 +32,17 @@ where
             Regex::Empty => p.pp("∅"),
             Regex::Eps => p.pp("ε"),
             Regex::Char(c) => p.pp(&Char(*c)),
-            Regex::Or(e1, e2) => p.infix(1, R, |p| {
+            Regex::Or(e1, e2) => p.infix(1, L, |p| {
                 p.pp_arg(L, e1);
                 p.pp("|");
                 p.pp_arg(R, e2);
             }),
-            Regex::And(e1, e2) => p.infix(2, R, |p| {
+            Regex::And(e1, e2) => p.infix(2, L, |p| {
                 p.pp_arg(L, e1);
                 p.pp("&");
                 p.pp_arg(R, e2);
             }),
-            Regex::Seq(e1, e2) => p.infix(3, R, |p| {
+            Regex::Seq(e1, e2) => p.infix(3, L, |p| {
                 p.pp_arg(L, e1);
                 p.pp_arg(R, e2);
             }),

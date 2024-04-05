@@ -1,10 +1,8 @@
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut};
 
-use logos::{Lexer, Logos};
 use peg::{Parse, ParseElem, ParseSlice, RuleResult};
 
-use crate::util::span::{Span, Spanned};
+use crate::util::span::Spanned;
 
 pub struct SpannedToks<'a, T: 'a> {
     pub src: &'a str,
