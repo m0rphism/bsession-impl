@@ -1,5 +1,5 @@
 {
-  description = "regexlang-interpreter";
+  description = "Interpreter and typechecker for the language from the Law and Order for Typestate with Borrowing paper";
 
   inputs = {
     rust-overlay.url = "github:oxalica/rust-overlay";
@@ -27,13 +27,13 @@
       CARGO_NET_GIT_FETCH_WITH_CLI = "true";
     in rec {
       packages = {
-        regexlang-interpreter = naerskLib.buildPackage {
-          name = "regexlang-interpreter";
+        law-and-order = naerskLib.buildPackage {
+          name = "law-and-order";
           src = ./.;
           inherit buildInputs LD_LIBRARY_PATH CARGO_NET_GIT_FETCH_WITH_CLI;
           nativeBuildInputs = nativeBuildInputs;
         };
-        default = packages.regexlang-interpreter;
+        default = packages.law-and-order;
       };
       devShells.default = pkgs.mkShell {
         inherit buildInputs LD_LIBRARY_PATH CARGO_NET_GIT_FETCH_WITH_CLI;

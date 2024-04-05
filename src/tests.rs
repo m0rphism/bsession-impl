@@ -5,7 +5,7 @@ use crate::{
 };
 
 pub fn typecheck_(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
-    typecheck(src).map_err(|e| {
+    typecheck(src, false).map_err(|e| {
         report_error("<nofile>", &src, e.clone());
         e
     })

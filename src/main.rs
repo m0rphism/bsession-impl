@@ -22,7 +22,7 @@ use crate::{
     args::Args,
     error_reporting::{report_error, IErr},
     lexer::Token,
-    semantics::{eval, eval_, Env},
+    semantics::eval,
     syntax::{Eff, Type},
     util::pretty::{pretty, PrettyOpts},
     util::{
@@ -42,11 +42,13 @@ fn main() {
 }
 
 pub fn run(args: &Args) -> Result<(), IErr> {
-    println!("===== SRC =====");
     let src = std::fs::read_to_string(&args.src_path).unwrap();
-    println!("{src}\n");
-    let (e, _t, _p) = typecheck(&src)?;
-    println!();
+    if args.verbose {
+        println!("===== SRC =====");
+        println!("{src}");
+        println!();
+    }
+    let (e, _t, _p) = typecheck(&src, args.verbose)?;
 
     println!("===== EVALUATION =====");
     let v = eval(&e).map_err(IErr::Eval)?;
@@ -57,7 +59,7 @@ pub fn run(args: &Args) -> Result<(), IErr> {
     Ok(())
 }
 
-pub fn typecheck(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
+pub fn typecheck(src: &str, verbose: bool) -> Result<(SExpr, Type, Eff), IErr> {
     // println!("===== TOKENS =====");
     let toks = lexer::lex(&src).map_err(IErr::Lexer)?;
     // for (i, t) in toks.toks.iter().enumerate() {
@@ -65,35 +67,38 @@ pub fn typecheck(src: &str) -> Result<(SExpr, Type, Eff), IErr> {
     // }
     // println!();
 
-    println!("===== TOKENS =====");
     let mut toks = lexer_offside::process_indent(toks, |_| false, |_| false);
     toks.toks = toks
         .toks
         .into_iter()
         .filter(|t| t.val != Braced::Token(Token::NewLine))
         .collect::<Vec<_>>();
-    for (i, t) in toks.toks.iter().enumerate() {
-        println!("{i}:\t{t:?}");
+    if verbose {
+        println!("===== TOKENS =====");
+        for (i, t) in toks.toks.iter().enumerate() {
+            println!("{i}:\t{t:?}");
+        }
+        println!();
     }
-    println!();
 
-    println!("===== AST =====");
     let mut e = parser::parse(&toks).map_err(IErr::Parser)?;
-    println!("{e:?}");
-    println!();
+    if verbose {
+        println!("===== AST =====");
+        println!("{e:?}");
+        println!();
+    }
 
-    println!("===== PRETTY =====");
-    let p_opts = PrettyOpts {
-        indent_by: 2,
-        max_line_len: 80,
-    };
-    println!("{}", pretty(&p_opts, &e));
-    println!();
+    if verbose {
+        println!("===== PRETTY =====");
+        println!("{}", pretty_def(&e));
+        println!();
+    }
 
     println!("===== TYPECHECKER =====");
     let (t, p) = type_checker::infer_type(&mut e).map_err(IErr::Typing)?;
-    println!("Type: {}", pretty(&p_opts, &t));
-    println!("Effect: {}", pretty(&p_opts, &p));
+    println!("Type:    {}", pretty_def(&t));
+    println!("Effect:  {}", pretty_def(&p));
+    println!();
 
     Ok((e, t.val, p))
 }
