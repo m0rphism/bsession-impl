@@ -71,10 +71,12 @@ We also provide unicode alternatives for certain tokens:
 - A lambda `\x. e` can also be written as `λx. e`
 - A function type `t1 -[ m E ]-> t2` can also be written as `t1 –[ m E ]→ t2`
 
+Comments are started with a `#` and range until the end of the line.
 
 ## Example
 
 ```
+# Function that does operation 'x' and then drops the resource.
 let f = λc. drop (!{x} c) 
       : {x} –[ u 1 ]→ Unit in
 let r = new {xy} in
