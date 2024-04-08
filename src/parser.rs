@@ -68,8 +68,8 @@ peg::parser! {
 
         #[cache_left_rec]
         pub rule type_arrow() -> Type
-            = t1:stype_arrow() tok(Minus) tok(BracketL) m:smult() tok(Semicolon)? e:seffect()
-              tok(BracketR) tok(Arrow) t2:stype_prod()
+            = t1:stype_prod() tok(Minus) tok(BracketL) m:smult() tok(Semicolon)? e:seffect()
+              tok(BracketR) tok(Arrow) t2:stype_arrow()
               { Type::Arr(m, e, Box::new(t1), Box::new(t2)) }
             / t:type_prod() { t }
         pub rule stype_arrow() -> SType = spanned(<type_arrow()>)
