@@ -38,9 +38,19 @@ impl Pretty<UserState> for Type {
             }),
             Type::Prod(m, t1, t2) => p.infix(2, N, |p| {
                 p.pp_arg(L, t1);
-                p.pp(" *[");
-                p.pp(m);
-                p.pp("] ");
+                match m.val {
+                    Mult::Lin => {
+                        p.pp(" ⊗ ");
+                    }
+                    Mult::OrdL => {
+                        p.pp(" ⊙ ");
+                    }
+                    _ => {
+                        p.pp(" *[");
+                        p.pp(m);
+                        p.pp("] ");
+                    }
+                }
                 p.pp_arg(R, t2);
             }),
         }

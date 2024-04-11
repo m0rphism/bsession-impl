@@ -6,6 +6,7 @@ use crate::syntax::Id as IdS;
 use crate::syntax::*;
 use crate::util::lexer_offside::Braced;
 use crate::util::peg_logos::SpannedToks;
+use crate::util::span::fake_span;
 use crate::util::span::{Span, Spanned};
 
 use peg::error::ParseError;
@@ -77,6 +78,10 @@ peg::parser! {
         pub rule type_prod() -> Type
             = t1:stype_atom() tok(Star) tok(BracketL) m:smult() tok(BracketR) t2:stype_prod()
               { Type::Prod(m, Box::new(t1), Box::new(t2)) }
+            / t1:stype_atom() tok(StarOrdL) t2:stype_prod()
+              { Type::Prod(fake_span(Mult::OrdL), Box::new(t1), Box::new(t2)) }
+            / t1:stype_atom() tok(StarLin) t2:stype_prod()
+              { Type::Prod(fake_span(Mult::Lin), Box::new(t1), Box::new(t2)) }
             / t:type_atom() { t }
          
         pub rule stype_prod() -> SType = spanned(<type_prod()>)

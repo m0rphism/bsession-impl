@@ -4,7 +4,7 @@ id x = x
 const : Unit –[ u 0 ]→ Unit -[ u 0 ]→ Unit
 const x y = x
 
-assoc : ((Unit *[ p ] Unit) *[ p ] Unit) –[ u 0 ]→  (Unit *[ p ] (Unit *[ p ] Unit))
+assoc : ((Unit ⊗ Unit) ⊗ Unit) –[ u 0 ]→ (Unit ⊗ (Unit ⊗ Unit))
 assoc ((x, y), z) = (x, (y, z))
 
 # const unit (id unit)

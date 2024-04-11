@@ -100,6 +100,10 @@ pub enum Token<'a> {
     Minus,
     #[token("*")]
     Star,
+    #[token("⊙")]
+    StarOrdL,
+    #[token("⊗")]
+    StarLin,
     #[token("//")]
     DoubleSlash,
     #[token("/")]
@@ -237,6 +241,8 @@ impl<'a> Token<'a> {
             Token::Str(_x) => "string",
             Token::Id(_x) => "variable",
             Token::NewLine => "\\n",
+            Token::StarOrdL => "⊗",
+            Token::StarLin => "⊙",
         }
     }
 }

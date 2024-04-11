@@ -82,6 +82,8 @@ r_ ::= ϵ          (epsilon regex)
 We also provide unicode alternatives for certain tokens:
 - A lambda `\x. e` can also be written as `λx. e`
 - A function type `t1 -[ m E ]-> t2` can also be written as `t1 –[ m E ]→ t2`
+- An unordered product type `t1 *[ p ] t2` can also be written as `t1 ⊗ t2`
+- A left-ordered product type `t1 *[ l ] t2` can also be written as `t1 ⊙ t2`
 
 Comments are started with a `#` and range until the end of the line.
 
