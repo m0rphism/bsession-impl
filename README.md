@@ -42,6 +42,8 @@ e ::= e ':' t                       (type annotation)
     | '\' ('[' m ']')? x '.' e      (lambda with optional multiplicity annotation)
     | 'let' x ',' x '=' e 'in' e    (product elimination)
     | 'let' x '=' e 'in' e          (let expression)
+    | 'let' x ':' t '\n'
+            x p+ '=' e 'in' e       (let expression for pattern matching function)
     | e ';' e                       (sequencing)
     | 'new' r                       (resource allocation)
     | '!' r e                       (resource operation)
@@ -58,10 +60,6 @@ x ::= [a-zA-Z_]+[a-zA-Z0-9_]*
 Patterns
 p ::= x                  (variable pattern)
     | '(' p1 ',' p2 ')'  (pair pattern)
-    
-Declaration
-D ::= x ':' t '\n'
-      x p+ '=' e    (function declaration with pattern matching)
     
 Program
 P ::= e    (main expression)
@@ -103,8 +101,10 @@ or with declarations:
 
 ```
 # Function that does operation 'x' and then drops the resource.
-f : {x} –[ u 1 ]→ Unit in
-f c = drop (!{x} c)
+let
+  f : {x} –[ u 1 ]→ Unit
+  f c = drop (!{x} c)
+in
 
 let r = new {xy} in
 let r1, r2 = split {x} r in

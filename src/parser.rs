@@ -114,7 +114,7 @@ peg::parser! {
             / tok(Let) x:sid() tok(Equals) e1:sexpr_ann() tok(In) e2:sexpr_lam()
               { Expr::Let(x, Box::new(e1), Box::new(e2)) }
             / tok(Let) x:sid() tok(Colon) t:stype() cs:sclause()* tok(In) e:sexpr_lam()
-              { Expr::LetDecl(x, t, cs, Box::new(e))  }
+              { Expr::LetDecl(x, t, cs, Box::new(e)) }
             / e:expr_seq() { e }
         pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
 
