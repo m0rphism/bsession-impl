@@ -67,7 +67,7 @@ pub fn typecheck(src: &str, verbose: bool) -> Result<(SExpr, Type, Eff), IErr> {
     // }
     // println!();
 
-    let mut toks = lexer_offside::process_indent(toks, |_| false, |&t| t == Token::NewLine);
+    let mut toks = lexer_offside::process_indent(toks, |_| false, |_| false);
     toks.toks = toks
         .toks
         .into_iter()
@@ -84,7 +84,7 @@ pub fn typecheck(src: &str, verbose: bool) -> Result<(SExpr, Type, Eff), IErr> {
     let mut e = parser::parse(&toks).map_err(IErr::Parser)?;
     if verbose {
         println!("===== AST =====");
-        println!("{e:?}");
+        println!("{e:#?}");
         println!();
     }
 

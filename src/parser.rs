@@ -113,6 +113,8 @@ peg::parser! {
               { Expr::LetPair(x, y, Box::new(e1), Box::new(e2)) }
             / tok(Let) x:sid() tok(Equals) e1:sexpr_ann() tok(In) e2:sexpr_lam()
               { Expr::Let(x, Box::new(e1), Box::new(e2)) }
+            / tok(Let) x:sid() tok(Colon) t:stype() cs:sclause()* tok(In) e:sexpr_lam()
+              { Expr::LetDecl(x, t, cs, Box::new(e))  }
             / e:expr_seq() { e }
         pub rule sexpr_lam() -> SExpr = spanned(<expr_lam()>)
 
@@ -163,18 +165,14 @@ peg::parser! {
         pub rule spattern() -> SPattern = spanned(<pattern()>)
 
         pub rule clause() -> Clause
-            = [BlockItem] y:sid() ps:spattern()* tok(Equals) e:sexpr() { Clause { id: y, pats: ps, body: e } }
+            = [Braced::Item]? y:sid() ps:spattern()* tok(Equals) e:sexpr() { Clause { id: y, pats: ps, body: e } }
         pub rule sclause() -> SClause = spanned(<clause()>)
-
-        pub rule decl() -> Expr
-            = [BlockItem] x:sid() tok(Colon) t:stype() cs:sclause()* e:sdecl()
-              { Expr::LetDecl(x, t, cs, Box::new(e))  }
-            / [BlockItem] e:expr() { e }
-        pub rule sdecl() -> SExpr = spanned(<decl()>)
 
         // Whole Programs
 
-        pub rule program() -> Expr = [BlockStart] e:decl() [BlockEnd] { e }
+        #[cache]
+        pub rule program() -> Expr
+            = [Braced::Begin] [Braced::Item]? e:expr() [Braced::End] { e }
         pub rule sprogram() -> SExpr = spanned(<program()>)
     }
 }

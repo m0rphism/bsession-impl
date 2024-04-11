@@ -98,3 +98,16 @@ let r1, r2 = split {x} r in
 f r1;
 drop (!{y} r2)
 ```
+
+or with declarations:
+
+```
+# Function that does operation 'x' and then drops the resource.
+f : {x} –[ u 1 ]→ Unit in
+f c = drop (!{x} c)
+
+let r = new {xy} in
+let r1, r2 = split {x} r in
+f r1;
+drop (!{y} r2)
+```
