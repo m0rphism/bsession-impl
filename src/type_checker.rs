@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 
 use crate::{
-    syntax::{Eff, Expr, Id, Mult, SEff, SExpr, SId, SLoc, SMult, SRegex, SType, Type},
-    type_context::{Ctx, CtxS, JoinOrd},
+    syntax::{
+        Eff, Expr, Id, Mult, Pattern, SEff, SExpr, SId, SLoc, SMult, SPattern, SRegex, SType, Type,
+    },
+    type_context::{ext, Ctx, CtxS, JoinOrd},
     util::span::fake_span,
 };
 
@@ -26,6 +28,11 @@ pub enum TypeError {
     NewEmpty(SRegex),
     SeqDropsOrd(SExpr, SType),
     LeftOverCtx(SExpr, Ctx),
+    MultipleClauses(SExpr),
+    NotEnoughPatterns(SExpr),
+    PatternMismatch(SPattern, SType),
+    ClauseWithWrongId(SExpr, SId, SId),
+    ClauseWithZeroPatterns(SExpr),
 }
 
 // TODO: Subtyping
@@ -53,28 +60,11 @@ pub fn check(ctx: &Ctx, e: &mut SExpr, t: &SType) -> Result<Eff, TypeError> {
                 if ctx.vars().contains(&x.val) {
                     Err(TypeError::Shadowing(e_copy.clone(), x.clone()))?
                 }
-                let ctx2 = match m.val {
-                    Mult::Unr => CtxS::Join(
-                        ctx,
-                        Ctx::Bind(x.clone(), t1.as_ref().clone()),
-                        JoinOrd::Ordered,
-                    ),
-                    Mult::Lin => CtxS::Join(
-                        ctx,
-                        Ctx::Bind(x.clone(), t1.as_ref().clone()),
-                        JoinOrd::Unordered,
-                    ),
-                    Mult::OrdL => CtxS::Join(
-                        ctx,
-                        Ctx::Bind(x.clone(), t1.as_ref().clone()),
-                        JoinOrd::Ordered,
-                    ),
-                    Mult::OrdR => CtxS::Join(
-                        Ctx::Bind(x.clone(), t1.as_ref().clone()),
-                        ctx,
-                        JoinOrd::Ordered,
-                    ),
-                };
+                let ctx2 = ext(
+                    m.val,
+                    ctx.clone(),
+                    Ctx::Bind(x.clone(), t1.as_ref().clone()),
+                );
                 let po = check(&ctx2, e_body, t2)?;
                 if Eff::leq(po, p.val) {
                     Ok(Eff::No)
@@ -364,28 +354,11 @@ pub fn infer(ctx: &Ctx, e: &mut SExpr) -> Result<(SType, Eff), TypeError> {
                     t1,
                 ))?,
             };
-            let c_fill = match m.val {
-                Mult::Unr => CtxS::Join(
-                    CtxS::Bind(x.clone(), t11),
-                    CtxS::Bind(y.clone(), t12),
-                    JoinOrd::Ordered,
-                ),
-                Mult::Lin => CtxS::Join(
-                    CtxS::Bind(x.clone(), t11),
-                    CtxS::Bind(y.clone(), t12),
-                    JoinOrd::Unordered,
-                ),
-                Mult::OrdL => CtxS::Join(
-                    CtxS::Bind(x.clone(), t11),
-                    CtxS::Bind(y.clone(), t12),
-                    JoinOrd::Ordered,
-                ),
-                Mult::OrdR => CtxS::Join(
-                    CtxS::Bind(y.clone(), t12),
-                    CtxS::Bind(x.clone(), t11),
-                    JoinOrd::Ordered,
-                ),
-            };
+            let c_fill = ext(
+                m.val,
+                CtxS::Bind(x.clone(), t11),
+                CtxS::Bind(y.clone(), t12),
+            );
 
             let ctx_vars = cc.fill(Ctx::Empty).vars();
             if ctx_vars.contains(&x.val) {
@@ -445,21 +418,76 @@ pub fn infer(ctx: &Ctx, e: &mut SExpr) -> Result<(SType, Eff), TypeError> {
             }
             Ok((t2, Eff::lub(p1, p2)))
         }
+        Expr::LetDecl(x, t, cs, e) => {
+            let c = if cs.len() == 1 {
+                cs.first_mut().unwrap()
+            } else {
+                Err(TypeError::MultipleClauses(e_copy.clone()))?
+            };
+            if c.id.val != x.val {
+                Err(TypeError::ClauseWithWrongId(
+                    e_copy.clone(),
+                    c.id.clone(),
+                    x.clone(),
+                ))?
+            }
+            let (arg_tys, ret_ty, ret_eff) = split_arrow_type(t);
+            let ret_eff = if let Some(ret_eff) = ret_eff {
+                ret_eff
+            } else {
+                Err(TypeError::ClauseWithZeroPatterns(e_copy.clone()))?
+            };
+            if c.pats.len() != arg_tys.len() {
+                Err(TypeError::NotEnoughPatterns(e_copy.clone()))?
+            }
+            let mut ctx_body = ctx.clone();
+            for (pat, (arg_ty, m)) in c.pats.iter().zip(arg_tys) {
+                ctx_body = ext(m.val, ctx_body, check_pattern(pat, &arg_ty)?);
+            }
+            let eff = check(&ctx_body, &mut c.val.body, &ret_ty)?;
+            if !Eff::leq(eff, ret_eff.val) {
+                Err(TypeError::MismatchEffSub(
+                    e_copy.clone(),
+                    fake_span(eff),
+                    ret_eff,
+                ))?
+            }
+            let ctx = CtxS::Join(CtxS::Bind(x.clone(), t.clone()), ctx, JoinOrd::Ordered);
+            infer(&ctx, e)
+        }
+    }
+}
+
+pub fn check_pattern(pat: &SPattern, t: &SType) -> Result<Ctx, TypeError> {
+    match (&pat.val, &t.val) {
+        (Pattern::Var(x), _) => Ok(Ctx::Bind(x.clone(), t.clone())),
+        (Pattern::Pair(pat1, pat2), Type::Prod(m, t1, t2)) => {
+            let c1 = check_pattern(pat1, t1)?;
+            let c2 = check_pattern(pat2, t2)?;
+            Ok(ext(m.val, c1, c2))
+        }
+        (Pattern::Pair(pat1, pat2), _) => Err(TypeError::PatternMismatch(pat.clone(), t.clone())),
+    }
+}
+
+pub fn split_arrow_type(mut t: &SType) -> (Vec<(SType, SMult)>, SType, Option<SEff>) {
+    let mut args = vec![];
+    let mut eff = None;
+    loop {
+        match &t.val {
+            Type::Arr(m, e, t1, t2) => {
+                t = t2;
+                eff = Some(e.clone());
+                args.push((t1.as_ref().clone(), m.clone()));
+            }
+            _ => return (args, t.clone(), eff),
+        }
     }
 }
 
 pub fn infer_type(e: &mut SExpr) -> Result<(SType, Eff), TypeError> {
     infer(&Ctx::Empty, e)
 }
-
-// fn fresh_var() -> SId {
-//     static mut NEXT_FRESH_VAR: usize = 0;
-//     let n = unsafe {
-//         NEXT_FRESH_VAR += 1;
-//         NEXT_FRESH_VAR - 1
-//     };
-//     fake_span(format!("FRESH_{}", n))
-// }
 
 pub fn assert_unr_ctx(e: &SExpr, ctx: &Ctx) -> Result<(), TypeError> {
     if ctx.is_unr() {

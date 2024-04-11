@@ -55,6 +55,18 @@ e ::= e ':' t                       (type annotation)
 Variables
 x ::= [a-zA-Z_]+[a-zA-Z0-9_]*
 
+Patterns
+p ::= x                  (variable pattern)
+    | '(' p1 ',' p2 ')'  (pair pattern)
+    
+Declaration
+D ::= x ':' t '\n'
+      x p+ '=' e    (function declaration with pattern matching)
+    
+Program
+P ::= e    (main expression)
+    | D P  (declaration)
+
 Resources (Regular Expressions)
 r ::= '{' '}'     (short form of epsilon regex)
     | '{' r_ '}'  (arbitrary regex)

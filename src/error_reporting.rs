@@ -333,6 +333,65 @@ pub fn report_error(src_path: &str, src: &str, e: IErr) {
                     )],
                 );
             }
+            TypeError::MultipleClauses(e) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Type Error",
+                    [label(
+                        e.span,
+                        format!("Function declarations need exactly one pattern match clause.",),
+                    )],
+                );
+            }
+            TypeError::NotEnoughPatterns(e) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Type Error",
+                    [label(
+                        e.span,
+                        format!("Wrong amount of patterns for type annotation.",),
+                    )],
+                );
+            }
+            TypeError::PatternMismatch(p, t) => {
+                report(
+                    &src,
+                    p.span.start,
+                    "Type Error",
+                    [label(
+                        p.span,
+                        format!("Pattern does not describe type {}.", pretty_def(&t)),
+                    )],
+                );
+            }
+            TypeError::ClauseWithWrongId(e, x, y) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Type Error",
+                    [label(
+                        e.span,
+                        format!(
+                            "Function clause has name '{}' instead of '{}'.",
+                            pretty_def(&x),
+                            pretty_def(&y)
+                        ),
+                    )],
+                );
+            }
+            TypeError::ClauseWithZeroPatterns(e) => {
+                report(
+                    &src,
+                    e.span.start,
+                    "Type Error",
+                    [label(
+                        e.span,
+                        format!("Function clause needs to have at least one pattern.",),
+                    )],
+                );
+            }
         },
         IErr::Eval(e) => match e {
             EvalError::ValMismatch(e, v_expected, v_actual) => {

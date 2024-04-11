@@ -39,6 +39,21 @@ pub type Word = String;
 pub type SWord = Spanned<Word>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Pattern {
+    Var(SId),
+    Pair(Box<SPattern>, Box<SPattern>),
+}
+pub type SPattern = Spanned<Pattern>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Clause {
+    pub id: SId,
+    pub pats: Vec<SPattern>,
+    pub body: SExpr,
+}
+pub type SClause = Spanned<Clause>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     Unit,
     New(SRegex),
@@ -52,6 +67,7 @@ pub enum Expr {
     AppBorrow(Box<SExpr>, SId),
     Pair(Option<SMult>, Box<SExpr>, Box<SExpr>),
     LetPair(SId, SId, Box<SExpr>, Box<SExpr>),
+    LetDecl(SId, SType, Vec<SClause>, Box<SExpr>),
     Let(SId, Box<SExpr>, Box<SExpr>),
     Seq(Box<SExpr>, Box<SExpr>),
     Ann(Box<SExpr>, SType),
@@ -101,6 +117,32 @@ impl Expr {
             Expr::Ann(e, _t) => e.free_vars(),
             Expr::Let(x, e1, e2) => union(e1.free_vars(), without(e2.free_vars(), x)),
             Expr::Seq(e1, e2) => union(e1.free_vars(), e2.free_vars()),
+            Expr::LetDecl(_x, _t, cs, e) => {
+                let mut xs = HashSet::new();
+                for c in cs {
+                    xs.extend(c.free_vars())
+                }
+                union(xs, e.free_vars())
+            }
+        }
+    }
+}
+
+impl Clause {
+    pub fn free_vars(&self) -> HashSet<Id> {
+        let mut vars = self.body.free_vars();
+        for p in &self.pats {
+            vars = vars.difference(&p.bound_vars()).cloned().collect();
+        }
+        vars
+    }
+}
+
+impl Pattern {
+    pub fn bound_vars(&self) -> HashSet<Id> {
+        match self {
+            Pattern::Var(x) => HashSet::from([x.val.clone()]),
+            Pattern::Pair(p1, p2) => union(p1.bound_vars(), p2.bound_vars()),
         }
     }
 }
@@ -111,10 +153,13 @@ impl Type {
             (Type::Unit, Type::Unit) => true,
             (Type::Regex(r1), Type::Regex(r2)) => r1.is_subseteq_of(r2),
             (Type::Arr(m1, p1, t11, t12), Type::Arr(m2, p2, t21, t22)) => {
-                m1 == m2 && p1 == p2 && t11.is_subtype_of(t21) && t22.is_subtype_of(t12)
+                m1.val == m2.val
+                    && p1.val == p2.val
+                    && t11.is_subtype_of(t21)
+                    && t22.is_subtype_of(t12)
             }
             (Type::Prod(m1, t11, t12), Type::Prod(m2, t21, t22)) => {
-                m1 == m2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
+                m1.val == m2.val && t11.is_subtype_of(t21) && t12.is_subtype_of(t22)
             }
             (_, _) => false,
         }
@@ -124,10 +169,10 @@ impl Type {
             (Type::Unit, Type::Unit) => true,
             (Type::Regex(r1), Type::Regex(r2)) => r1.is_equal_to(r2),
             (Type::Arr(m1, p1, t11, t12), Type::Arr(m2, p2, t21, t22)) => {
-                m1 == m2 && p1 == p2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
+                m1.val == m2.val && p1.val == p2.val && t11.is_equal_to(t21) && t12.is_equal_to(t22)
             }
             (Type::Prod(m1, t11, t12), Type::Prod(m2, t21, t22)) => {
-                m1 == m2 && t11.is_equal_to(t21) && t12.is_equal_to(t22)
+                m1.val == m2.val && t11.is_equal_to(t21) && t12.is_equal_to(t22)
             }
             (_, _) => false,
         }

@@ -150,9 +150,26 @@ peg::parser! {
         pub rule word() -> Word = quiet!{[Tok(Str(s))] { s.to_string() }} / expected!("string")
         pub rule sword() -> SWord = spanned(<word()>)
 
+        // Declarations
+
+        pub rule pattern() -> Pattern
+            = tok(ParenL) p1:spattern() tok(Comma) p2:spattern() tok(ParenR) { Pattern::Pair(Box::new(p1), Box::new(p2)) }
+            / x:sid() { Pattern::Var(x.to_owned()) }
+        pub rule spattern() -> SPattern = spanned(<pattern()>)
+
+        pub rule clause() -> Clause
+            = [BlockItem] y:sid() ps:spattern()* tok(Equals) e:sexpr() { Clause { id: y, pats: ps, body: e } }
+        pub rule sclause() -> SClause = spanned(<clause()>)
+
+        pub rule decl() -> Expr
+            = [BlockItem] x:sid() tok(Colon) t:stype() cs:sclause()* e:sdecl()
+              { Expr::LetDecl(x, t, cs, Box::new(e))  }
+            / [BlockItem] e:expr() { e }
+        pub rule sdecl() -> SExpr = spanned(<decl()>)
+
         // Whole Programs
 
-        pub rule program() -> Expr = [BlockStart] [BlockItem] e:expr() [BlockEnd] { e }
+        pub rule program() -> Expr = [BlockStart] e:decl() [BlockEnd] { e }
         pub rule sprogram() -> SExpr = spanned(<program()>)
     }
 }

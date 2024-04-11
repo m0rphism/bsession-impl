@@ -1,5 +1,6 @@
 pub mod args;
 pub mod error_reporting;
+pub mod fresh_var;
 pub mod lexer;
 pub mod parser;
 pub mod pretty;
@@ -66,7 +67,7 @@ pub fn typecheck(src: &str, verbose: bool) -> Result<(SExpr, Type, Eff), IErr> {
     // }
     // println!();
 
-    let mut toks = lexer_offside::process_indent(toks, |_| false, |_| false);
+    let mut toks = lexer_offside::process_indent(toks, |_| false, |&t| t == Token::NewLine);
     toks.toks = toks
         .toks
         .into_iter()

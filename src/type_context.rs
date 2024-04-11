@@ -58,6 +58,15 @@ pub mod CtxS {
     }
 }
 
+pub fn ext(m: Mult, c1: Ctx, c2: Ctx) -> Ctx {
+    match m {
+        Mult::Unr => CtxS::Join(c1, c2, JoinOrd::Ordered),
+        Mult::Lin => CtxS::Join(c1, c2, JoinOrd::Unordered),
+        Mult::OrdL => CtxS::Join(c1, c2, JoinOrd::Ordered),
+        Mult::OrdR => CtxS::Join(c2, c1, JoinOrd::Ordered),
+    }
+}
+
 impl Ctx {
     pub fn map_binds(&self, f: &mut impl FnMut(&Id, &Type)) {
         match self {

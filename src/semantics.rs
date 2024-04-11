@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 
 use crate::{
+    fresh_var::fresh_var,
     regex::{regex, Regex},
-    syntax::{Expr, Id, Loc, Mult, SExpr, SId, SRegex},
-    util::pretty::{pretty_def, Assoc, Pretty},
+    syntax::{Expr, Id, Loc, Mult, Pattern, SExpr, SId, SPattern, SRegex},
+    util::{
+        pretty::{pretty_def, Assoc, Pretty},
+        span::fake_span,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,11 +77,13 @@ impl Pretty<()> for Value {
                 p.pp("");
             }),
             Value::Unit => p.pp("unit"),
-            Value::Pair(v1, v2) => p.infix(0, N, |p| {
+            Value::Pair(v1, v2) => {
+                p.pp("(");
                 p.pp(v1);
                 p.pp(", ");
                 p.pp(v2);
-            }),
+                p.pp(")");
+            }
             Value::Loc(l) => p.pp(&l.to_string()),
         }
     }
@@ -244,9 +250,13 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
             let m = om.ok_or_else(|| EvalError::AppWithoutAnn(e.clone()))?;
             let (v1, v2) = {
                 if m == Mult::OrdR {
-                    (eval_(heap, env, e1)?, eval_(heap, env, e2)?)
+                    let v2 = eval_(heap, env, e2)?;
+                    let v1 = eval_(heap, env, e1)?;
+                    (v1, v2)
                 } else {
-                    (eval_(heap, env, e2)?, eval_(heap, env, e1)?)
+                    let v1 = eval_(heap, env, e1)?;
+                    let v2 = eval_(heap, env, e2)?;
+                    (v1, v2)
                 }
             };
             match v1 {
@@ -291,6 +301,44 @@ pub fn eval_(heap: &mut Heap, env: &Env, e: &SExpr) -> Result<Value, EvalError> 
             eval_(heap, env, &e2)
         }
         Expr::Ann(e, _t) => eval_(heap, env, e.as_ref()),
+        Expr::LetDecl(x, _t, cs, e) => {
+            let c = cs.first().unwrap();
+            let mut fun = c.body.clone();
+            for p in c.pats.iter().rev() {
+                let y = fresh_var();
+                fun = fake_span(Expr::Abs(
+                    None,
+                    y.clone(),
+                    Box::new(pattern_to_let_chain(y, p, fun)),
+                ));
+            }
+            let fun_val = eval_(heap, env, &fun)?;
+            let env = env.ext(x.val.clone(), fun_val);
+            eval_(heap, &env, &e)
+        }
+    }
+}
+
+pub fn pattern_to_let_chain(x: SId, p: &SPattern, body: SExpr) -> SExpr {
+    match &p.val {
+        Pattern::Var(y) => fake_span(Expr::Let(
+            y.clone(),
+            Box::new(fake_span(Expr::Var(x.clone()))),
+            Box::new(body),
+        )),
+        Pattern::Pair(p1, p2) => {
+            let x1 = fresh_var();
+            let x2 = fresh_var();
+            let body = pattern_to_let_chain(x2.clone(), p2, body);
+            let body = pattern_to_let_chain(x1.clone(), p1, body);
+            let body = fake_span(Expr::LetPair(
+                x1,
+                x2,
+                Box::new(fake_span(Expr::Var(x.clone()))),
+                Box::new(body),
+            ));
+            body
+        }
     }
 }
 

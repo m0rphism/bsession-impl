@@ -1,5 +1,5 @@
 use crate::{
-    syntax::{Eff, Expr, Mult, SMult, Type},
+    syntax::{Clause, Eff, Expr, Mult, Pattern, SMult, Type},
     util::pretty::{Assoc, Pretty, PrettyEnv},
     util::span::Spanned,
 };
@@ -36,7 +36,13 @@ impl Pretty<UserState> for Type {
                 p.pp("]→ ");
                 p.pp_arg(R, t2);
             }),
-            Type::Prod(_, _, _) => todo!(),
+            Type::Prod(m, t1, t2) => p.infix(2, N, |p| {
+                p.pp_arg(L, t1);
+                p.pp(" *[");
+                p.pp(m);
+                p.pp("] ");
+                p.pp_arg(R, t2);
+            }),
         }
     }
 }
@@ -140,13 +146,15 @@ impl Pretty<UserState> for Expr {
             Expr::Loc(l) => {
                 p.pp(&format!("#{l:?}"));
             }
-            Expr::Pair(om, e1, e2) => p.infix(0, N, |p| {
+            Expr::Pair(om, e1, e2) => {
+                p.pp("(");
                 p.pp(e1);
                 p.pp(",");
                 p.pp(om);
                 p.pp(" ");
                 p.pp(e2);
-            }),
+                p.pp(")");
+            }
             Expr::LetPair(x, y, e1, e2) => p.infix(1, R, |p| {
                 p.pp("let ");
                 p.pp(x);
@@ -175,6 +183,46 @@ impl Pretty<UserState> for Expr {
                 p.pp("; ");
                 p.pp_arg(R, e2);
             }),
+            Expr::LetDecl(x, t, cs, e) => {
+                p.pp(x);
+                p.pp(" : ");
+                p.pp(t);
+                p.pp("\n");
+                for c in cs {
+                    p.pp(c);
+                }
+                p.pp("\n");
+                p.pp(e)
+            }
+        }
+    }
+}
+
+impl Pretty<UserState> for Clause {
+    fn pp(&self, p: &mut PrettyEnv<UserState>) {
+        p.pp(&self.id);
+        p.pp(" ");
+        for pat in &self.pats {
+            p.pp(pat);
+            p.pp(" ");
+        }
+        p.pp("= ");
+        p.pp(&self.body);
+        p.pp("\n")
+    }
+}
+
+impl Pretty<UserState> for Pattern {
+    fn pp(&self, p: &mut PrettyEnv<UserState>) {
+        match self {
+            Pattern::Var(x) => p.pp(x),
+            Pattern::Pair(p1, p2) => {
+                p.pp("(");
+                p.pp(p1);
+                p.pp(", ");
+                p.pp(p2);
+                p.pp(")");
+            }
         }
     }
 }
