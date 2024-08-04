@@ -210,7 +210,16 @@ pub fn infer(ctx: &Ctx, e: &mut SExpr) -> Result<(SType, Eff), TypeError> {
                     *om = Some(m.val);
                     Ok((*t12, Eff::lub(p.val, Eff::lub(p1, p2))))
                 }
-                _ => Err(TypeError::Mismatch(e.clone(), Ok(t1.clone()), t2.clone())),
+                Type::Arr(_m, _p, t11, _t12) => Err(TypeError::Mismatch(
+                    *e2.clone(),
+                    Ok(*t11.clone()),
+                    t2.clone(),
+                ))?,
+                _ => Err(TypeError::Mismatch(
+                    *e1.clone(),
+                    Err("Function".into()),
+                    t1.clone(),
+                )),
             }
         }
         Expr::AppBorrow(_e1, _x) => {
