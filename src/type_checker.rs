@@ -392,17 +392,26 @@ pub fn infer(ctx: &Ctx, e: &mut SExpr) -> Result<(SType, Eff), TypeError> {
                 Err(TypeError::Shadowing(e_copy.clone(), x.clone()))?
             }
 
-            let c12 = CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered);
-            if !ctx.is_subctx_of(&c12) {
-                Err(TypeError::CtxSplitFailed(
-                    e_copy.clone(),
-                    ctx.clone(),
-                    c12.clone(),
-                ))?
-            }
+            let join_ord = {
+                let c12 = CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Unordered);
+                if ctx.is_subctx_of(&c12) {
+                    JoinOrd::Unordered
+                } else {
+                    let c12 = CtxS::Join(c1.clone(), c2.clone(), JoinOrd::Ordered);
+                    if ctx.is_subctx_of(&c12) {
+                        JoinOrd::Ordered
+                    } else {
+                        Err(TypeError::CtxSplitFailed(
+                            e_copy.clone(),
+                            ctx.clone(),
+                            c12.clone(),
+                        ))?
+                    }
+                }
+            };
 
             let (t1, p1) = infer(&c1, e1)?;
-            let c2x = CtxS::Join(CtxS::Bind(x.clone(), t1), &c2, JoinOrd::Ordered);
+            let c2x = CtxS::Join(CtxS::Bind(x.clone(), t1), &c2, join_ord);
             let (t2, p2) = infer(&c2x, e2)?;
             Ok((t2, Eff::lub(p1, p2)))
         }
