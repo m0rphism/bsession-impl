@@ -1,9 +1,9 @@
 let
-  copy : {r} *[ p ] {w} -[ u 1 ]-> Unit
+  copy : {r} *[ p ] {w} -[u 1]-> Unit
   copy (rc, wc) = drop (!{r} rc); drop (!{w} wc)
 in
 let
-  mcopy : {r*} *[ p ] {w*} -[ u 1 ]-> Unit
+  mcopy : {r*} *[ p ] {w*} -[u 1]-> Unit
   mcopy (r0, w0) =
     let r1 = !{r} r0 in let w1 = !{w} w0 in
     let r2 = !{r} r1 in let w2 = !{w} w1 in

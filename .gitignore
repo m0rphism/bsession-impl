@@ -16,3 +16,6 @@ auto/
 
 # Misc
 .#*
+
+# MACOS
+.DS_Store
