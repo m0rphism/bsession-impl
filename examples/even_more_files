@@ -9,6 +9,14 @@ let
     let r2 = !{r} r1 in let w2 = !{w} w1 in
     drop r2; drop w2
 in
+# let
+#   xcopy : ({r*} *[ p ] {w*}) *[ l ] ({c} *[ p ] {c})  -[ u 1 ]-> Unit
+#   xcopy ((r0, w0), (c1, c2)) =
+#     let r1 = !{r} r0 in let w1 = !{w} w0 in
+#     let r2 = !{r} r1 in let w2 = !{w} w1 in
+#     drop r2; drop w2;
+#     drop (!{c} c1); drop (!{c} c2)
+# in
 
 let file1 = new {(r|w)*c} in
 let file2 = new {(r|w)*c} in
